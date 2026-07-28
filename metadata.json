@@ -1,0 +1,12 @@
+{
+  "name": "GoldenGuard",
+  "description": "AI-Powered Next-Gen Road Safety, SOS Emergency Dispatch & Volunteer Mesh Platform",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
