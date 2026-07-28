@@ -28,6 +28,7 @@ export const StartTripCard: React.FC<StartTripCardProps> = ({ onStartTrip }) => 
   const [vehicleType, setVehicleType] = useState<VehicleType>('Car / Sedan / SUV');
   const [helmetOrSeatbelt, setHelmetOrSeatbelt] = useState(true);
   const [emergencyContact, setEmergencyContact] = useState('+91 98765 43210 (Karan Malhotra - Brother)');
+  const [speedLimit, setSpeedLimit] = useState<number>(60);
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -41,6 +42,11 @@ export const StartTripCard: React.FC<StartTripCardProps> = ({ onStartTrip }) => 
       setErrorMsg('Please confirm Helmet / Seatbelt safety pledge before starting trip.');
       return;
     }
+    
+    if (speedLimit < 10 || speedLimit > 150) {
+      setErrorMsg('Please enter a valid speed limit between 10 and 150 km/h.');
+      return;
+    }
 
     setErrorMsg('');
     onStartTrip({
@@ -49,6 +55,7 @@ export const StartTripCard: React.FC<StartTripCardProps> = ({ onStartTrip }) => 
       vehicleType,
       helmetOrSeatbeltConfirmed: helmetOrSeatbelt,
       emergencyContact,
+      speedLimit
     });
   };
 
@@ -161,19 +168,37 @@ export const StartTripCard: React.FC<StartTripCardProps> = ({ onStartTrip }) => 
           </label>
         </div>
 
-        {/* EMERGENCY CONTACT */}
-        <div className="space-y-2">
-          <label className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 flex items-center space-x-1.5">
-            <PhoneCall className="w-3.5 h-3.5 text-rose-500" />
-            <span>Emergency Contact SOS Line</span>
-          </label>
-          <input
-            type="text"
-            value={emergencyContact}
-            onChange={(e) => setEmergencyContact(e.target.value)}
-            required
-            className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white"
-          />
+        {/* SPEED LIMIT & EMERGENCY CONTACT */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 flex items-center space-x-1.5">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+              <span>Speed Limit (KM/H)</span>
+            </label>
+            <input
+              type="number"
+              value={speedLimit}
+              onChange={(e) => setSpeedLimit(Number(e.target.value))}
+              required
+              min="10"
+              max="150"
+              className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 flex items-center space-x-1.5">
+              <PhoneCall className="w-3.5 h-3.5 text-rose-500" />
+              <span>Emergency Contact SOS Line</span>
+            </label>
+            <input
+              type="text"
+              value={emergencyContact}
+              onChange={(e) => setEmergencyContact(e.target.value)}
+              required
+              className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white"
+            />
+          </div>
         </div>
 
         {/* START TRIP BUTTON */}
