@@ -11,6 +11,7 @@ export interface TripConfig {
   vehicleType: VehicleType;
   helmetOrSeatbeltConfirmed: boolean;
   emergencyContact: string;
+  speedLimit?: number;
 }
 
 export interface DrivingTelemetry {

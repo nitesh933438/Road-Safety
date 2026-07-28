@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { WifiOff, X, CloudUpload, RefreshCw } from 'lucide-react';
+import { WifiOff, CloudUpload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initOfflineSyncService, getPendingSyncCount } from '../../services/offlineSyncService';
 import toast from 'react-hot-toast';
 
 export const OfflineBanner: React.FC = () => {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
-  const [dismissed, setDismissed] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -19,7 +18,6 @@ export const OfflineBanner: React.FC = () => {
 
     const handleOnline = () => {
       setIsOnline(true);
-      setDismissed(false);
     };
     const handleOffline = () => setIsOnline(false);
 
@@ -45,7 +43,7 @@ export const OfflineBanner: React.FC = () => {
     };
   }, []);
 
-  if (isOnline || dismissed) return null;
+  if (isOnline) return null;
 
   return (
     <AnimatePresence>
@@ -55,10 +53,10 @@ export const OfflineBanner: React.FC = () => {
         exit={{ y: -50, opacity: 0 }}
         className="fixed top-[64px] left-0 right-0 z-40 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white px-4 py-2 flex items-center justify-between shadow-xl border-b border-amber-400/30"
       >
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 w-full justify-center text-center">
           <WifiOff className="w-5 h-5 flex-shrink-0 text-amber-200 animate-pulse" />
           <p className="text-xs sm:text-sm font-semibold">
-            <span>You are currently offline. Emergency reports captured now are stored in background sync queue.</span>
+            <span>You are currently offline. You might experience delays in emergency reporting features.</span>
             {pendingCount > 0 && (
               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-black border border-white/30">
                 <CloudUpload className="w-3 h-3 mr-1" /> {pendingCount} Pending Sync
@@ -66,13 +64,6 @@ export const OfflineBanner: React.FC = () => {
             )}
           </p>
         </div>
-        <button 
-          onClick={() => setDismissed(true)}
-          className="p-1 hover:bg-amber-700/60 rounded-full transition-colors ml-4 flex-shrink-0"
-          aria-label="Dismiss offline banner"
-        >
-          <X className="w-4 h-4" />
-        </button>
       </motion.div>
     </AnimatePresence>
   );

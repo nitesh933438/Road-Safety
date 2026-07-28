@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Bot, Send, Mic, MicOff, Volume2, Pause, Square, Image as ImageIcon,
-  Trash2, RefreshCw, AlertTriangle, ShieldAlert, CheckCircle2, Globe, ArrowLeft, X, Sparkles, Paperclip
+  Trash2, RefreshCw, AlertTriangle, ShieldAlert, CheckCircle2, Globe, ArrowLeft, X, Sparkles, Paperclip, MapPin
 } from 'lucide-react';
 import { analyzeEmergencyQuery, AiTriageResponse } from '../services/aiService';
 import { Link } from 'react-router-dom';
@@ -20,6 +20,7 @@ interface Message {
   triage?: AiTriageResponse;
   image?: string;
   timestamp: string;
+  location?: { lat: number; lng: number };
 }
 
 export const AiAssistantPage: React.FC = () => {
@@ -158,6 +159,26 @@ export const AiAssistantPage: React.FC = () => {
     setInputMessage('');
     setSelectedImage(null);
     setIsLoading(true);
+
+    // Automatic background task to fetch precise location for emergency report
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setMessages((prev) => 
+            prev.map((msg) => 
+              msg.id === userMsg.id 
+                ? { ...msg, location: { lat: latitude, lng: longitude } } 
+                : msg
+            )
+          );
+        },
+        (error) => {
+          console.error("Error fetching location for emergency report:", error);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    }
 
     try {
       // Check offline status
@@ -397,7 +418,15 @@ export const AiAssistantPage: React.FC = () => {
                       : 'bg-amber-500 text-white'
                   }`}>
                     <div className="flex items-center justify-between text-[11px] opacity-75 mb-1">
-                      <span className="font-bold">{isAi ? 'Golden Hour AI' : 'You'}</span>
+                      <span className="font-bold flex items-center space-x-1">
+                        <span>{isAi ? 'Golden Hour AI' : 'You'}</span>
+                        {msg.location && (
+                          <span className="flex items-center space-x-0.5 bg-white/20 px-1.5 py-0.5 rounded-full ml-2 text-[9px]" title={`Lat: ${msg.location.lat.toFixed(4)}, Lng: ${msg.location.lng.toFixed(4)}`}>
+                            <MapPin className="w-2.5 h-2.5" />
+                            <span>Location Attached</span>
+                          </span>
+                        )}
+                      </span>
                       <span>{msg.timestamp}</span>
                     </div>
 

@@ -30,6 +30,8 @@ import {
   HazardZoneType
 } from '../../data/drivingGuardianData';
 
+import { SpeedMonitorWidget } from './SpeedMonitorWidget';
+
 interface LiveDrivingDashboardProps {
   tripConfig: TripConfig;
   onEndTrip: (telemetry: DrivingTelemetry, warningsList: AiGuardianWarning[]) => void;
@@ -41,12 +43,12 @@ export const LiveDrivingDashboard: React.FC<LiveDrivingDashboardProps> = ({
   onEndTrip,
   onTriggerImpactCrash,
 }) => {
-  const [speed, setSpeed] = useState<number>(45);
-  const [avgSpeed, setAvgSpeed] = useState<number>(42);
-  const [maxSpeed, setMaxSpeed] = useState<number>(58);
-  const [distanceKm, setDistanceKm] = useState<number>(2.4);
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(180);
-  const [safetyScore, setSafetyScore] = useState<number>(96);
+  const [speed, setSpeed] = useState<number>(0);
+  const [avgSpeed, setAvgSpeed] = useState<number>(0);
+  const [maxSpeed, setMaxSpeed] = useState<number>(0);
+  const [distanceKm, setDistanceKm] = useState<number>(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [safetyScore, setSafetyScore] = useState<number>(100);
   const [overspeedCount, setOverspeedCount] = useState<number>(0);
   const [hardBrakingCount, setHardBrakingCount] = useState<number>(0);
   const [sharpTurnCount, setSharpTurnCount] = useState<number>(0);
@@ -54,16 +56,79 @@ export const LiveDrivingDashboard: React.FC<LiveDrivingDashboardProps> = ({
   const [voiceAlertsEnabled, setVoiceAlertsEnabled] = useState<boolean>(true);
   const [activeWarnings, setActiveWarnings] = useState<AiGuardianWarning[]>([]);
   const [allWarningsHistory, setAllWarningsHistory] = useState<AiGuardianWarning[]>([]);
+  const [lastPosition, setLastPosition] = useState<GeolocationPosition | null>(null);
 
-  // Trip Timer Loop
+  // Real-time Geolocation tracking
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const speedMps = position.coords.speed;
+        let currentSpeedKmph = 0;
+        
+        if (speedMps !== null && !isNaN(speedMps)) {
+          currentSpeedKmph = Math.round(speedMps * 3.6);
+          setSpeed(currentSpeedKmph);
+          setMaxSpeed((prev) => Math.max(prev, currentSpeedKmph));
+        } else {
+          setSpeed(0);
+        }
+
+        // Distance calculation
+        setLastPosition((prevPosition) => {
+          if (prevPosition) {
+            const R = 6371; // km
+            const dLat = (position.coords.latitude - prevPosition.coords.latitude) * Math.PI / 180;
+            const dLon = (position.coords.longitude - prevPosition.coords.longitude) * Math.PI / 180;
+            const lat1 = prevPosition.coords.latitude * Math.PI / 180;
+            const lat2 = position.coords.latitude * Math.PI / 180;
+
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            const d = R * c;
+            
+            if (d > 0.001) { // Only update if moved more than 1 meter
+              setDistanceKm((prevDistance) => parseFloat((prevDistance + d).toFixed(3)));
+            }
+          }
+          return position;
+        });
+
+        // Trigger overspeed warning if exceeding limit
+        if (tripConfig.speedLimit && currentSpeedKmph > tripConfig.speedLimit) {
+          handleRealOverspeed(currentSpeedKmph, tripConfig.speedLimit);
+        }
+      },
+      (error) => {
+        console.error('Error fetching real-time location telemetry:', error);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [tripConfig.speedLimit]);
+
+  // Trip Timer & Avg Speed Loop
   useEffect(() => {
     const timer = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
-      setDistanceKm((prev) => parseFloat((prev + speed / 3600).toFixed(2)));
+      setElapsedSeconds((prev) => {
+        const newTime = prev + 1;
+        // Update avg speed
+        setDistanceKm((currentDist) => {
+           if (newTime > 0) {
+             const hours = newTime / 3600;
+             setAvgSpeed(Math.round(currentDist / hours));
+           }
+           return currentDist;
+        });
+        return newTime;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [speed]);
+  }, []);
 
   // Speech Synthesis Helper
   const speakVoiceMessage = (text: string) => {
@@ -117,6 +182,26 @@ export const LiveDrivingDashboard: React.FC<LiveDrivingDashboardProps> = ({
     setTimeout(() => {
       setActiveWarnings((prev) => prev.filter((w) => w.id !== newWarn.id));
     }, 6000);
+  };
+
+  const lastOverspeedTime = React.useRef<number>(0);
+
+  const handleRealOverspeed = (currentSpeedKmph: number, limit: number) => {
+    const now = Date.now();
+    if (now - lastOverspeedTime.current < 60000) return; // Only warn once per minute
+    
+    lastOverspeedTime.current = now;
+    setOverspeedCount((prev) => prev + 1);
+    setSafetyScore((prev) => Math.max(30, prev - 8));
+    
+    addWarning(
+      'Overspeeding',
+      `SPEED LIMIT EXCEEDED (${currentSpeedKmph} KM/H)`,
+      `Speed limit on this sector is ${limit} km/h. Please slow down immediately.`,
+      'Warning. Overspeeding detected. Please slow down immediately.',
+      'CRITICAL',
+      'Zap'
+    );
   };
 
   // SIMULATED HAZARD TRIGGERS
@@ -276,6 +361,9 @@ export const LiveDrivingDashboard: React.FC<LiveDrivingDashboardProps> = ({
           </motion.div>
         ))}
       </AnimatePresence>
+
+      {/* REAL-TIME SPEED WIDGET */}
+      <SpeedMonitorWidget speedLimitKmph={tripConfig.speedLimit || 60} />
 
       {/* TELEMETRY METRIC GRID */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
