@@ -51,8 +51,71 @@ export const AiAssistantPage: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
 
   const [showUploadPanel, setShowUploadPanel] = useState(false);
+  const [isWakeWordActive, setIsWakeWordActive] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const wakeWordRecognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    if (isWakeWordActive && !isListening) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = language === 'hi' ? 'hi-IN' : 'en-US';
+
+      recognition.onresult = (event: any) => {
+        const current = event.resultIndex;
+        const transcript = event.results[current][0].transcript.toLowerCase();
+        
+        const triggerWords = ['emergency', 'help', 'hey assistant', 'आपातकाल', 'मदद'];
+        
+        if (triggerWords.some(word => transcript.includes(word))) {
+          recognition.stop();
+          
+          if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(language === 'hi' ? "सुन रही हूँ" : "Listening");
+            utterance.lang = language === 'hi' ? 'hi-IN' : 'en-US';
+            utterance.onend = () => {
+              startSpeechRecognition();
+            };
+            window.speechSynthesis.speak(utterance);
+          } else {
+            startSpeechRecognition();
+          }
+        }
+      };
+
+      recognition.onend = () => {
+        if (isWakeWordActive && !isListening) {
+          try {
+            recognition.start();
+          } catch (e) {
+            console.error('Wake word restart error:', e);
+          }
+        }
+      };
+
+      try {
+        recognition.start();
+        wakeWordRecognitionRef.current = recognition;
+      } catch (e) {
+        console.error('Wake word start error:', e);
+      }
+    } else {
+      if (wakeWordRecognitionRef.current) {
+        wakeWordRecognitionRef.current.stop();
+      }
+    }
+
+    return () => {
+      if (wakeWordRecognitionRef.current) {
+        wakeWordRecognitionRef.current.stop();
+      }
+    };
+  }, [isWakeWordActive, isListening, language]);
 
   useEffect(() => {
     localStorage.setItem('roadguard_ai_chat_history', JSON.stringify(messages));
@@ -72,8 +135,15 @@ export const AiAssistantPage: React.FC = () => {
     { label: language === 'hi' ? 'सांप का काटना' : 'Snake Bite', query: 'Snake bite first aid instructions' },
   ];
 
-  const handleSendMessage = async (textToSend?: string, imageToAttach?: string) => {
-    const query = textToSend || inputMessage;
+  const handleSendMessage = async (textToSend?: string | React.SyntheticEvent, imageToAttach?: string) => {
+    let queryValue = inputMessage;
+    if (typeof textToSend === 'string') {
+      queryValue = textToSend;
+    } else if (textToSend && typeof (textToSend as React.SyntheticEvent).preventDefault === 'function') {
+      (textToSend as React.SyntheticEvent).preventDefault();
+    }
+    
+    const query = queryValue;
     if (!query.trim() && !imageToAttach) return;
 
     const userMsg: Message = {
@@ -151,16 +221,24 @@ export const AiAssistantPage: React.FC = () => {
   const startSpeechRecognition = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
+      setIsListening(true);
       const recognition = new SpeechRecognition();
       recognition.lang = language === 'hi' ? 'hi-IN' : 'en-US';
-      recognition.onstart = () => setIsListening(true);
       recognition.onend = () => setIsListening(false);
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setInputMessage(transcript);
         handleSendMessage(transcript);
       };
-      recognition.start();
+      
+      setTimeout(() => {
+        try {
+          recognition.start();
+        } catch(e) {
+          console.error(e);
+          setIsListening(false);
+        }
+      }, 100);
     } else {
       alert('Speech recognition not supported in this browser.');
     }
@@ -264,7 +342,7 @@ export const AiAssistantPage: React.FC = () => {
         {/* Main AI Chat Container */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm flex flex-col h-[650px]">
           {/* Chat Header */}
-          <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md">
                 <Sparkles className="w-5 h-5" />
@@ -274,9 +352,24 @@ export const AiAssistantPage: React.FC = () => {
                 <p className="text-xs text-slate-500 dark:text-slate-400">Powered by Trauma Protocols & Speech Synthesis</p>
               </div>
             </div>
-            <span className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-3 py-1 rounded-full">
-              ● Online Active
-            </span>
+            
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setIsWakeWordActive(!isWakeWordActive)}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
+                  isWakeWordActive
+                    ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                }`}
+                title="Say 'Hey Assistant', 'Help', or 'Emergency' to wake"
+              >
+                <div className={`w-2 h-2 rounded-full ${isWakeWordActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                <span>Hands-Free Mode</span>
+              </button>
+              <span className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-3 py-1 rounded-full">
+                ● Online Active
+              </span>
+            </div>
           </div>
 
           {/* Quick Prompt Emergency Buttons */}

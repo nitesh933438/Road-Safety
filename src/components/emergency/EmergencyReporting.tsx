@@ -42,6 +42,8 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { uploadToCloudinary, CloudinaryUploadResult } from '../../services/cloudinaryService';
 import { MOCK_VOLUNTEERS, MOCK_NEAREST_HOSPITAL, EmergencyReportData, Volunteer } from '../../data/emergencyData';
+import { enqueueOfflineReport, syncPendingReports } from '../../services/offlineSyncService';
+import { OfflineSyncQueueWidget } from './OfflineSyncQueueWidget';
 
 // Custom Map Marker for Accident Location
 const createAccidentMarker = (severity: string) => {
@@ -305,7 +307,7 @@ export const EmergencyReporting: React.FC = () => {
     return { level: aiLevel, confidence, reasoning };
   };
 
-  // Submit Emergency Report to Firestore
+  // Submit Emergency Report to Firestore / Offline Background Sync
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -337,24 +339,35 @@ export const EmergencyReporting: React.FC = () => {
       status: 'Submitted',
     };
 
-    try {
-      // Save directly to Firestore collection
-      await addDoc(collection(db, 'emergency_reports'), {
-        ...reportData,
-        createdAt: serverTimestamp(),
-      });
-      console.log('Saved report to Firestore successfully!');
-    } catch (firestoreErr) {
-      console.warn('Firestore write warning (retaining local state):', firestoreErr);
-      // Fallback: save in LocalStorage for offline consistency
-      const existing = JSON.parse(localStorage.getItem('roadguard_emergency_reports') || '[]');
-      existing.unshift(reportData);
-      localStorage.setItem('roadguard_emergency_reports', JSON.stringify(existing));
+    // Always enqueue in persistent offline queue first
+    enqueueOfflineReport(reportData);
+
+    let pushedToFirestore = false;
+    if (navigator.onLine) {
+      try {
+        // Save directly to Firestore collection when online
+        await addDoc(collection(db, 'emergency_reports'), {
+          ...reportData,
+          createdAt: serverTimestamp(),
+          syncedFromOffline: false,
+        });
+        pushedToFirestore = true;
+        // Trigger queue sync update to mark as synced
+        await syncPendingReports();
+        console.log('Saved report to Firestore directly!');
+      } catch (firestoreErr) {
+        console.warn('Firestore write notice (retaining in offline sync queue):', firestoreErr);
+      }
     }
 
     setIsSubmitting(false);
     setSubmittedReport(reportData);
-    triggerToast('Emergency Report Stored in Firestore & Dispatched to 108 Command Center!');
+
+    if (pushedToFirestore) {
+      triggerToast('Emergency Report Stored in Firestore & Dispatched to 108 Command Center!');
+    } else {
+      triggerToast('⚡ Offline Mode: Report saved to local Background Sync Queue. Auto-syncing to Firestore when online!');
+    }
   };
 
   return (
@@ -390,6 +403,9 @@ export const EmergencyReporting: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Background Offline Sync Queue Widget */}
+      <OfflineSyncQueueWidget />
 
       {!submittedReport ? (
         /* FORM VIEW: INPUT REPORT DATA */
