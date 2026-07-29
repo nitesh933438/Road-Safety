@@ -91,7 +91,12 @@ export const ProfilePage: React.FC = () => {
                     )}
                   </div>
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">{userProfile?.name || 'User'}</h3>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white">{userProfile?.name || 'User'}</h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        {userProfile?.role || 'citizen'}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{currentUser?.email}</p>
                     <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-1">Profile Photo stored on Cloudinary CDN</p>
                   </div>

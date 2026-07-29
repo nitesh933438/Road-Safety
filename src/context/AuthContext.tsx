@@ -15,9 +15,11 @@ import {
   browserSessionPersistence
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, googleProvider, syncUserProfileDoc, isGoogleAIStudioPreview } from '../lib/firebase';
+import { auth, db, googleProvider, syncUserProfileDoc, isGoogleAIStudioPreview, UserRole } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { getAuthErrorMessage } from '../utils/authErrorUtils';
+
+export type { UserRole };
 
 export interface UserProfile {
   uid: string;
@@ -25,7 +27,7 @@ export interface UserProfile {
   email: string;
   phone?: string;
   photoURL?: string;
-  role: 'user' | 'admin';
+  role: UserRole;
   createdAt?: any;
   lastLogin?: any;
   bloodGroup?: string;
@@ -49,7 +51,7 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   login: (email: string, pass: string, rememberMe?: boolean) => Promise<User>;
-  signup: (fullName: string, email: string, phone: string, pass: string) => Promise<User>;
+  signup: (fullName: string, email: string, phone: string, pass: string, role?: UserRole) => Promise<User>;
   loginWithGoogle: () => Promise<GoogleAuthResponse>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -83,11 +85,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (docSnap && docSnap.exists()) {
         const data = docSnap.data() as UserProfile;
+        const targetRole = data.role || 'citizen';
+        const sanitizedRole: UserRole = isAdmin ? 'admin' : (targetRole === 'admin' ? 'citizen' : targetRole);
         setUserProfile({
           ...data,
           uid: user.uid,
           email: userEmail,
-          role: isAdmin ? 'admin' : (data.role || 'user')
+          role: sanitizedRole
         });
       } else {
         // Create initial fallback profile if doc doesn't exist yet
@@ -97,7 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: userEmail,
           phone: user.phoneNumber || '',
           photoURL: user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.displayName || userEmail)}`,
-          role: isAdmin ? 'admin' : 'user',
+          role: isAdmin ? 'admin' : 'citizen',
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString()
         };
@@ -114,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: userEmail,
         phone: user.phoneNumber || '',
         photoURL: user.photoURL || '',
-        role: isAdmin ? 'admin' : 'user'
+        role: isAdmin ? 'admin' : 'citizen'
       });
     }
   };
@@ -143,7 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // 2. Signup
-  const signup = async (fullName: string, emailInput: string, phone: string, passwordInput: string) => {
+  const signup = async (fullName: string, emailInput: string, phone: string, passwordInput: string, selectedRole: UserRole = 'citizen') => {
     const trimmedName = fullName.trim();
     const trimmedEmail = emailInput.trim();
     const trimmedPhone = phone.trim();
@@ -158,8 +162,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(trimmedName)}`
       }).catch(() => {});
 
-      // Create Firestore User Document
-      await syncUserProfileDoc(user, { name: trimmedName, phone: trimmedPhone });
+      // Create Firestore User Document with selected role
+      await syncUserProfileDoc(user, { name: trimmedName, phone: trimmedPhone, role: selectedRole });
       await fetchUserProfile(user);
     }
 

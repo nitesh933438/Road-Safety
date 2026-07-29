@@ -64,6 +64,8 @@ export function isGoogleAIStudioPreview(): boolean {
   );
 }
 
+export type UserRole = 'citizen' | 'volunteer' | 'hospital' | 'police' | 'admin';
+
 const ADMIN_EMAIL = 'nitesh933438@gmail.com';
 
 /**
@@ -71,7 +73,7 @@ const ADMIN_EMAIL = 'nitesh933438@gmail.com';
  */
 export async function syncUserProfileDoc(
   user: User, 
-  additionalData?: { name?: string; phone?: string }
+  additionalData?: { name?: string; phone?: string; role?: UserRole }
 ) {
   if (!user || !user.uid) return null;
 
@@ -91,9 +93,11 @@ export async function syncUserProfileDoc(
     if (snap && snap.exists()) {
       // Existing user -> update lastLogin and sync role/phone/photo if provided
       const existingData = snap.data();
+      const targetRole = additionalData?.role || existingData.role || 'citizen';
+      const updatedRole: UserRole = isAdmin ? 'admin' : (targetRole === 'admin' ? 'citizen' : targetRole);
       const updatePayload: Record<string, any> = {
         lastLogin: serverTimestamp(),
-        role: isAdmin ? 'admin' : (existingData.role || 'user')
+        role: updatedRole
       };
       if (additionalData?.name) updatePayload.name = additionalData.name;
       if (additionalData?.phone) updatePayload.phone = additionalData.phone;
@@ -104,13 +108,15 @@ export async function syncUserProfileDoc(
       });
     } else {
       // New user document creation
+      const targetRole = additionalData?.role || 'citizen';
+      const assignedRole: UserRole = isAdmin ? 'admin' : (targetRole === 'admin' ? 'citizen' : targetRole);
       const newDoc = {
         uid: user.uid,
         name: fallbackName,
         email: userEmail,
         phone: additionalData?.phone || user.phoneNumber || '',
         photoURL: photoURL,
-        role: isAdmin ? 'admin' : 'user',
+        role: assignedRole,
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp()
       };

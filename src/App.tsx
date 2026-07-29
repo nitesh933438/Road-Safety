@@ -16,6 +16,7 @@ import { AuthProvider } from './context/AuthContext';
 import { DemoProvider } from './context/DemoContext';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { AdminRoute } from './components/auth/AdminRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OfflineBanner } from './components/pwa/OfflineBanner';
 import { InstallPrompt } from './components/pwa/InstallPrompt';
@@ -43,6 +44,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage').then(module => ({ d
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
 const CommunityNetworkPage = lazy(() => import('./pages/CommunityNetworkPage').then(module => ({ default: module.CommunityNetworkPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then(module => ({ default: module.AdminDashboardPage })));
+const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage').then(module => ({ default: module.AccessDeniedPage })));
 const AiPredictionPage = lazy(() => import('./pages/AiPredictionPage').then(module => ({ default: module.AiPredictionPage })));
 const AiSafeRoutePage = lazy(() => import('./pages/AiSafeRoutePage').then(module => ({ default: module.AiSafeRoutePage })));
 const SmartRiskLayerPage = lazy(() => import('./pages/SmartRiskLayerPage').then(module => ({ default: module.SmartRiskLayerPage })));
@@ -86,12 +88,15 @@ export default function App() {
                     <Route path="/training" element={<TrainingAcademyPage />} />
                     <Route path="/samaritan" element={<GoodSamaritanHubPage />} />
                     <Route path="/community" element={<CommunityNetworkPage />} />
-                    <Route path="/admin" element={<AdminDashboardPage />} />
+                    <Route path="/access-denied" element={<AccessDeniedPage />} />
                     <Route path="/specs" element={<SystemSpecs />} />
                     <Route path="/about" element={<AboutHackathon />} />
                     <Route path="/presentation" element={<PresentationModePage />} />
                     
-                    {/* Protected Routes */}
+                    {/* Admin Protected Route */}
+                    <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
+
+                    {/* Protected User Routes */}
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                     <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />

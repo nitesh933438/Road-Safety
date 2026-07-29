@@ -41,6 +41,15 @@ export const Navbar: React.FC = () => {
     { name: 'About Hackathon', path: '/about', icon: Info },
   ];
 
+  const userRole = userProfile?.role || 'citizen';
+
+  const visibleNavLinks = navLinks.filter(link => {
+    if (link.path === '/admin') {
+      return userRole === 'admin';
+    }
+    return true;
+  });
+
   const handleLinkClick = () => {
     setMobileMenuOpen(false);
     setProfileDropdownOpen(false);
@@ -80,7 +89,7 @@ export const Navbar: React.FC = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-1 overflow-x-auto max-w-2xl no-scrollbar">
-            {navLinks.map((link) => {
+            {visibleNavLinks.map((link) => {
               const Icon = link.icon;
               return (
                 <NavLink
@@ -143,7 +152,10 @@ export const Navbar: React.FC = () => {
                       >
                         <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50">
                           <p className="text-sm text-slate-900 dark:text-white font-semibold truncate">{userProfile?.name || 'User'}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{currentUser.email}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mb-1.5">{currentUser.email}</p>
+                          <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            Role: {userRole}
+                          </span>
                         </div>
                         <Link
                           to="/profile"
@@ -214,7 +226,10 @@ export const Navbar: React.FC = () => {
                    </div>
                    <div className="ml-3">
                      <div className="text-base font-semibold text-slate-800 dark:text-white truncate">{userProfile?.name || 'User'}</div>
-                     <div className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate">{currentUser.email}</div>
+                     <div className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate mb-1">{currentUser.email}</div>
+                     <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                       Role: {userRole}
+                     </span>
                    </div>
                  </div>
                  <div className="mt-3 space-y-1">
@@ -254,7 +269,7 @@ export const Navbar: React.FC = () => {
             
             <div className="space-y-1">
               <p className="px-3 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Navigation</p>
-              {navLinks.map((link) => {
+              {visibleNavLinks.map((link) => {
                 const Icon = link.icon;
                 return (
                   <NavLink

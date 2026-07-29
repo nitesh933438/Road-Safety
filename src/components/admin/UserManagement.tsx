@@ -7,11 +7,26 @@ export const UserManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'volunteers'>('users');
   const [search, setSearch] = useState('');
 
-  const users = [
-    { id: 'U-1', name: 'Rahul Sharma', role: 'Citizen', status: 'Active', email: 'rahul@example.com' },
-    { id: 'U-2', name: 'Neha Gupta', role: 'Citizen', status: 'Suspended', email: 'neha@example.com' },
-    { id: 'U-3', name: 'Admin User', role: 'Admin', status: 'Active', email: 'admin@roadsafety.org' },
-  ];
+  const [users, setUsers] = useState([
+    { id: 'U-1', name: 'Rahul Sharma', role: 'citizen', status: 'Active', email: 'rahul@example.com' },
+    { id: 'U-2', name: 'Neha Gupta', role: 'volunteer', status: 'Active', email: 'neha@example.com' },
+    { id: 'U-3', name: 'Metro Life Hospital', role: 'hospital', status: 'Active', email: 'emergency@metrolife.org' },
+    { id: 'U-4', name: 'City Traffic Control', role: 'police', status: 'Active', email: 'dispatch@police.gov.in' },
+    { id: 'U-5', name: 'Nitesh Kumar', role: 'admin', status: 'Active', email: 'nitesh933438@gmail.com' },
+  ]);
+
+  const roleStyles: Record<string, string> = {
+    admin: 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-900',
+    police: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900',
+    hospital: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-900',
+    volunteer: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900',
+    citizen: 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+  };
+
+  const handleRoleChange = (userId: string, newRole: string) => {
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    toast.success(`Updated role for ${userId} to ${newRole.toUpperCase()}`);
+  };
 
   const volunteers = [
     { id: 'V-1', name: 'Dr. Priya Singh', cert: 'Trauma Surgeon', rating: 4.9, city: 'Delhi', status: 'Approved', rescues: 112 },
@@ -122,12 +137,19 @@ export const UserManagement: React.FC = () => {
                       <td className="px-6 py-4 font-black text-slate-900 dark:text-white">{user.name}</td>
                       <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-medium">{user.email}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
-                          user.role === 'Admin' ? 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-900 shadow-sm' : 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-                        }`}>
-                          {user.role === 'Admin' && <Shield className="w-3 h-3 mr-1.5" />}
-                          {user.role}
-                        </span>
+                        <select
+                          value={user.role}
+                          onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border cursor-pointer outline-none ${
+                            roleStyles[user.role] || roleStyles.citizen
+                          }`}
+                        >
+                          <option value="citizen">Citizen</option>
+                          <option value="volunteer">Volunteer</option>
+                          <option value="hospital">Hospital</option>
+                          <option value="police">Police</option>
+                          <option value="admin">Admin</option>
+                        </select>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${

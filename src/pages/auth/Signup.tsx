@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, UserRole } from '../../context/AuthContext';
 import { isGoogleAIStudioPreview } from '../../lib/firebase';
-import { Mail, Lock, User, Phone, UserPlus, Eye, EyeOff, Check, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, User, Phone, UserPlus, Eye, EyeOff, Check, AlertTriangle, ShieldCheck, Shield, Heart, Building2, Radio } from 'lucide-react';
 import { GoogleIcon } from '../../components/common/GoogleIcon';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -15,6 +15,7 @@ export const SignupPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<UserRole>('citizen');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -98,7 +99,7 @@ export const SignupPage: React.FC = () => {
 
     try {
       setLoading(true);
-      await signup(trimmedName, trimmedEmail, trimmedPhone, password);
+      await signup(trimmedName, trimmedEmail, trimmedPhone, password, role);
       toast.success('Account created successfully!');
       navigate('/dashboard', { replace: true });
     } catch (error: any) {
@@ -264,6 +265,37 @@ export const SignupPage: React.FC = () => {
                   placeholder="+1 (555) 000-0000"
                   aria-required="true"
                 />
+              </div>
+            </div>
+
+            {/* Account Role Selection */}
+            <div>
+              <label 
+                htmlFor="signup-role" 
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
+              >
+                Account Identity & Role
+              </label>
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                  <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <select
+                  id="signup-role"
+                  name="role"
+                  disabled={loading || googleLoading}
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as UserRole)}
+                  className="block w-full pl-11 pr-8 py-2.5 text-sm text-slate-900 dark:text-white bg-slate-50/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 transition-all outline-none disabled:opacity-60 cursor-pointer appearance-none"
+                >
+                  <option value="citizen">Citizen / Commuter (Default)</option>
+                  <option value="volunteer">Good Samaritan Volunteer</option>
+                  <option value="hospital">Hospital / Emergency Medical Staff</option>
+                  <option value="police">Traffic Police / First Responder</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                  ▼
+                </div>
               </div>
             </div>
 
