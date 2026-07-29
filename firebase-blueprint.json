@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile document stored in Firestore users collection",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User unique identifier from Firebase Auth" },
+        "name": { "type": "string", "description": "User full name" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "phone": { "type": "string", "description": "User phone number" },
+        "photoURL": { "type": "string", "description": "User avatar photo URL" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "Access role" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of account creation" },
+        "lastLogin": { "type": "string", "description": "ISO timestamp of last login" }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User accounts collection indexed by UID"
+    }
+  }
+}

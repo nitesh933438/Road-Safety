@@ -1,319 +1,457 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../../lib/firebase';
-import { ShieldAlert, Mail, Lock, UserPlus, User, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { isGoogleAIStudioPreview } from '../../lib/firebase';
+import { Mail, Lock, User, Phone, UserPlus, Eye, EyeOff, Check, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { GoogleIcon } from '../../components/common/GoogleIcon';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { getAuthErrorMessage } from '../../utils/authErrorUtils';
-import { performGoogleAuth, isGoogleAIStudioPreview } from '../../utils/googleAuthHelper';
-import { GoogleAuthModal } from '../../components/auth/GoogleAuthModal';
 import { APP_LOGO_DATA_URI } from '../../assets/logoDataUri';
-import { useAuth } from '../../context/AuthContext';
 
 export const SignupPage: React.FC = () => {
-  const { setCustomUserSession } = useAuth();
+  const { currentUser, signup, loginWithGoogle } = useAuth();
+  
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
   const [loading, setLoading] = useState(false);
-  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  
   const navigate = useNavigate();
+  const isPreviewEnv = isGoogleAIStudioPreview();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (currentUser) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [currentUser, navigate]);
+
+  // Password Strength Calculation Helper
+  const calculatePasswordStrength = (pass: string) => {
+    let score = 0;
+    if (!pass) return { score: 0, label: '', color: 'bg-slate-200 dark:bg-slate-700' };
+    
+    if (pass.length >= 6) score += 1;
+    if (pass.length >= 10) score += 1;
+    if (/[A-Z]/.test(pass)) score += 1;
+    if (/[0-9]/.test(pass)) score += 1;
+    if (/[^A-Za-z0-9]/.test(pass)) score += 1;
+
+    if (score <= 1) return { score: 1, label: 'Weak', color: 'bg-rose-500' };
+    if (score <= 3) return { score: 2, label: 'Fair', color: 'bg-amber-500' };
+    if (score <= 4) return { score: 3, label: 'Good', color: 'bg-blue-500' };
+    return { score: 4, label: 'Strong', color: 'bg-emerald-500' };
+  };
+
+  const strength = calculatePasswordStrength(password);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
-    
+    const trimmedPhone = phone.trim();
+
     if (!trimmedName) {
-      toast.error('Please enter your full name');
+      toast.error('Please enter your full name.');
       return;
     }
 
     if (!trimmedEmail) {
-      toast.error('Please enter a valid email address');
+      toast.error('Please enter your email address.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
+    if (!trimmedPhone) {
+      toast.error('Please enter your phone number.');
       return;
     }
 
     if (password.length < 6) {
-      toast.error('Password must be at least 6 characters long');
+      toast.error('Password must be at least 6 characters long.');
       return;
     }
 
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error('Passwords do not match. Please check and try again.');
+      return;
+    }
+
+    if (!agreeTerms) {
+      toast.error('You must agree to the Terms & Conditions to sign up.');
       return;
     }
 
     try {
       setLoading(true);
-      const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
-      
-      // Update Auth Profile
-      if (userCredential.user) {
-        const isAdmin = trimmedEmail.toLowerCase().trim() === 'nitesh933438@gmail.com';
-        await updateProfile(userCredential.user, {
-          displayName: trimmedName
-        }).catch(() => {});
-
-        // Create user document in Firestore
-        try {
-          await setDoc(doc(db, 'users', userCredential.user.uid), {
-            uid: userCredential.user.uid,
-            name: trimmedName,
-            email: trimmedEmail,
-            role: isAdmin ? 'admin' : 'user',
-            createdAt: serverTimestamp(),
-            lastLogin: serverTimestamp(),
-          });
-        } catch (e) {
-          console.warn("Firestore profile creation skipped due to permissions:", e);
-        }
-      }
-
+      await signup(trimmedName, trimmedEmail, trimmedPhone, password);
       toast.success('Account created successfully!');
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (error: any) {
-      const code = error?.code || '';
-      if (
-        code === 'auth/unauthorized-domain' ||
-        code === 'auth/operation-not-allowed' ||
-        code === 'auth/email-already-in-use'
-      ) {
-        setCustomUserSession(trimmedEmail, trimmedName);
-        toast.success('Account created successfully!');
-        navigate('/dashboard');
-      } else {
-        const friendlyError = getAuthErrorMessage(error);
-        toast.error(friendlyError);
-      }
+      const friendlyError = getAuthErrorMessage(error);
+      toast.error(friendlyError, { duration: 4000 });
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleSignup = async () => {
+    if (isPreviewEnv) {
+      toast.error(
+        'Google Sign-In is available only when running locally (npm run dev) or on a deployed domain due to Firebase OAuth restrictions.',
+        { duration: 6000 }
+      );
+      return;
+    }
+
     try {
-      setLoading(true);
-      const res = await performGoogleAuth();
+      setGoogleLoading(true);
+      const res = await loginWithGoogle();
+
       if (res.success && res.user) {
         toast.success(`Welcome to GoldenGuard, ${res.user.displayName || 'User'}!`);
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       } else if (res.isPreview) {
-        toast.error('Google Sign-In is unavailable in AI Studio Preview. Please run the app locally (npm run dev) or on a deployed domain.', { duration: 6000 });
-        if (res.requiresGmailInput) {
-          setIsGoogleModalOpen(true);
-        }
+        toast.error(
+          'Google Sign-In is available only when running locally (npm run dev) or on a deployed domain due to Firebase OAuth restrictions.',
+          { duration: 6000 }
+        );
       } else if (res.redirecting) {
         toast.loading('Redirecting to Google Sign-In...');
-      } else if (res.requiresGmailInput) {
-        setIsGoogleModalOpen(true);
       } else if (res.error) {
         toast.error(res.error);
       }
-    } catch (error: any) {
-      const friendlyError = getAuthErrorMessage(error);
-      toast.error(friendlyError);
+    } catch (err: any) {
+      const friendlyMsg = getAuthErrorMessage(err);
+      toast.error(friendlyMsg);
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors duration-300">
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Brand Logo & Name */}
         <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg bg-slate-900 border border-amber-500/40 p-0.5">
-            <img 
-              src={APP_LOGO_DATA_URI} 
-              alt="GoldenGuard Logo" 
-              className="w-full h-full object-cover rounded-xl" 
-            />
-          </div>
+          <Link to="/" className="group flex flex-col items-center focus:outline-none" aria-label="Go to Home">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-xl bg-slate-900 border-2 border-amber-500/40 p-0.5 group-hover:scale-105 transition-transform">
+              <img 
+                src={APP_LOGO_DATA_URI} 
+                alt="GoldenGuard Logo" 
+                className="w-full h-full object-cover rounded-xl" 
+              />
+            </div>
+            <span className="mt-3 font-bold text-2xl tracking-tight gradient-text">
+              GoldenGuard
+            </span>
+          </Link>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-          Create a new account
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+
+        <h1 className="mt-4 text-center text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          Create Your Account
+        </h1>
+        <p className="mt-2 text-center text-sm text-slate-600 dark:text-slate-400">
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400">
-            Sign in
+          <Link 
+            to="/login" 
+            className="font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 focus:outline-none focus:underline transition-colors"
+          >
+            Sign in instead
           </Link>
         </p>
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"
       >
-        <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-100 dark:border-gray-700">
-          <form className="space-y-6" onSubmit={handleSignup}>
+        <div className="glass backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 py-8 px-6 sm:px-10 shadow-2xl rounded-3xl border border-slate-200/80 dark:border-slate-800/80">
+          <form className="space-y-4" onSubmit={handleSignup} noValidate>
+            
+            {/* Full Name */}
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label 
+                htmlFor="signup-name" 
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
+              >
                 Full Name
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                  <User className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <input
-                  id="name"
+                  id="signup-name"
                   name="name"
                   type="text"
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white py-2 disabled:opacity-60"
+                  className="block w-full pl-11 pr-4 py-2.5 text-sm text-slate-900 dark:text-white bg-slate-50/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 transition-all outline-none disabled:opacity-60"
                   placeholder="John Doe"
+                  aria-required="true"
                 />
               </div>
             </div>
 
+            {/* Email Address */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email address
+              <label 
+                htmlFor="signup-email" 
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
+              >
+                Email Address
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                  <Mail className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <input
-                  id="email"
+                  id="signup-email"
                   name="email"
                   type="email"
                   autoComplete="email"
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white py-2 disabled:opacity-60"
+                  className="block w-full pl-11 pr-4 py-2.5 text-sm text-slate-900 dark:text-white bg-slate-50/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 transition-all outline-none disabled:opacity-60"
                   placeholder="you@example.com"
+                  aria-required="true"
                 />
               </div>
             </div>
 
+            {/* Phone Number */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Password
+              <label 
+                htmlFor="signup-phone" 
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
+              >
+                Phone Number
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                  <Phone className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <input
-                  id="password"
+                  id="signup-phone"
+                  name="phone"
+                  type="tel"
+                  required
+                  disabled={loading || googleLoading}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="block w-full pl-11 pr-4 py-2.5 text-sm text-slate-900 dark:text-white bg-slate-50/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 transition-all outline-none disabled:opacity-60"
+                  placeholder="+1 (555) 000-0000"
+                  aria-required="true"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label 
+                htmlFor="signup-password" 
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
+              >
+                Password
+              </label>
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                  <Lock className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <input
+                  id="signup-password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 sm:text-sm border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white py-2 disabled:opacity-60"
+                  className="block w-full pl-11 pr-11 py-2.5 text-sm text-slate-900 dark:text-white bg-slate-50/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 transition-all outline-none disabled:opacity-60"
                   placeholder="••••••••"
+                  aria-required="true"
                 />
                 <button
                   type="button"
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  title={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
+
+              {/* Password Strength Meter */}
+              {password.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-medium">
+                    <span className="text-slate-500 dark:text-slate-400">Password Strength:</span>
+                    <span className={`font-semibold ${
+                      strength.score === 1 ? 'text-rose-600 dark:text-rose-400' :
+                      strength.score === 2 ? 'text-amber-600 dark:text-amber-400' :
+                      strength.score === 3 ? 'text-blue-600 dark:text-blue-400' :
+                      'text-emerald-600 dark:text-emerald-400'
+                    }`}>{strength.label}</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 h-1.5">
+                    {[1, 2, 3, 4].map((step) => (
+                      <div
+                        key={step}
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          step <= strength.score ? strength.color : 'bg-slate-200 dark:bg-slate-700/60'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Confirm Password */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label 
+                htmlFor="signup-confirm-password" 
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
+              >
                 Confirm Password
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                  <Lock className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <input
-                  id="confirmPassword"
+                  id="signup-confirm-password"
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 sm:text-sm border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white py-2 disabled:opacity-60"
+                  className="block w-full pl-11 pr-11 py-2.5 text-sm text-slate-900 dark:text-white bg-slate-50/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 transition-all outline-none disabled:opacity-60"
                   placeholder="••••••••"
+                  aria-required="true"
                 />
                 <button
                   type="button"
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none transition-colors"
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
                 >
                   {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
 
-            <div>
+            {/* Terms and Conditions Checkbox */}
+            <div className="pt-1">
+              <div className="flex items-start">
+                <input
+                  id="agree-terms"
+                  name="agreeTerms"
+                  type="checkbox"
+                  required
+                  checked={agreeTerms}
+                  onChange={(e) => setAgreeTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 cursor-pointer"
+                />
+                <label htmlFor="agree-terms" className="ml-2.5 block text-xs text-slate-600 dark:text-slate-400 cursor-pointer leading-relaxed select-none">
+                  I agree to GoldenGuard's{' '}
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">Terms of Service</span> and{' '}
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">Privacy Policy</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className="pt-2">
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={loading || googleLoading}
+                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-lg shadow-indigo-500/20 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                aria-label="Create new GoldenGuard account"
               >
-                {loading ? 'Creating account...' : 'Create Account'}
-                {!loading && <UserPlus className="ml-2 h-5 w-5" />}
+                {loading ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Creating Account...</span>
+                  </div>
+                ) : (
+                  <>
+                    <span>Create Account</span>
+                    <UserPlus className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </button>
             </div>
           </form>
 
-          <div className="mt-6">
+          {/* Social Login Divider */}
+          <div className="mt-5">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">Or continue with</span>
+              <div className="relative flex justify-center text-xs uppercase tracking-wider font-semibold">
+                <span className="px-3 bg-white/90 dark:bg-slate-900/90 text-slate-500 dark:text-slate-400">
+                  Or sign up with
+                </span>
               </div>
             </div>
 
-            <div className="mt-6">
+            {/* Google Sign-In */}
+            <div className="mt-4 space-y-3">
               <button
                 type="button"
                 onClick={handleGoogleSignup}
-                disabled={loading}
-                className="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                disabled={loading || googleLoading}
+                className="w-full flex justify-center items-center py-3 px-4 border border-slate-300 dark:border-slate-700 rounded-xl shadow-sm bg-white dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all cursor-pointer"
+                aria-label="Sign up with Google"
               >
-                <GoogleIcon />
-                <span className="ml-2">Continue with Google</span>
+                {googleLoading ? (
+                  <div className="w-5 h-5 border-2 border-slate-400 border-t-indigo-600 rounded-full animate-spin mr-2" />
+                ) : (
+                  <GoogleIcon className="h-5 w-5 mr-2.5" />
+                )}
+                <span>Continue with Google</span>
               </button>
-              {isGoogleAIStudioPreview() && (
-                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 text-center font-medium">
-                  Google Sign-In is unavailable in AI Studio Preview. Please run the app locally (<code className="bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5 rounded text-[10px]">npm run dev</code>) or on a deployed domain.
-                </p>
+
+              {/* AI Studio Preview Domain Notice */}
+              {isPreviewEnv && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 flex items-start space-x-2.5 text-xs leading-relaxed">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Notice:</strong> Google Sign-In is available only when running locally (<code className="bg-amber-200/50 dark:bg-amber-900/50 px-1 py-0.5 rounded font-mono text-[11px]">npm run dev</code>) or on a deployed domain due to Firebase OAuth restrictions.
+                  </p>
+                </div>
               )}
             </div>
           </div>
         </div>
       </motion.div>
-
-      <GoogleAuthModal
-        isOpen={isGoogleModalOpen}
-        onClose={() => setIsGoogleModalOpen(false)}
-        onSuccess={(user) => {
-          toast.success(`Welcome to GoldenGuard, ${user.displayName || 'User'}!`);
-          navigate('/dashboard');
-        }}
-      />
     </div>
   );
 };
-

@@ -1,44 +1,66 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   User, 
-  onAuthStateChanged,
+  onAuthStateChanged, 
   getRedirectResult,
-  signOut as firebaseSignOut
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signInWithPopup,
+  signInWithRedirect,
+  sendPasswordResetEmail,
+  signOut as firebaseSignOut,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db, googleProvider, syncUserProfileDoc, isGoogleAIStudioPreview } from '../lib/firebase';
 import toast from 'react-hot-toast';
+import { getAuthErrorMessage } from '../utils/authErrorUtils';
 
 export interface UserProfile {
   uid: string;
   name: string;
   email: string;
   phone?: string;
+  photoURL?: string;
+  role: 'user' | 'admin';
+  createdAt?: any;
+  lastLogin?: any;
   bloodGroup?: string;
   emergencyContacts?: string;
   city?: string;
   state?: string;
-  role?: string;
-  createdAt?: string;
-  lastLogin?: string;
   profileImage?: string;
   notificationsEnabled?: boolean;
+}
+
+interface GoogleAuthResponse {
+  success: boolean;
+  user?: User | null;
+  isPreview?: boolean;
+  redirecting?: boolean;
+  error?: string;
 }
 
 interface AuthContextType {
   currentUser: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  login: (email: string, pass: string, rememberMe?: boolean) => Promise<User>;
+  signup: (fullName: string, email: string, phone: string, pass: string) => Promise<User>;
+  loginWithGoogle: () => Promise<GoogleAuthResponse>;
   logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
-  setCustomUserSession: (email: string, name?: string, photoURL?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
@@ -46,179 +68,186 @@ export const useAuth = () => {
 
 const ADMIN_EMAIL = 'nitesh933438@gmail.com';
 
-export const isAdminEmail = (email?: string | null): boolean => {
-  if (!email) return false;
-  return email.toLowerCase().trim() === ADMIN_EMAIL;
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const setCustomUserSession = (email: string, name?: string, photoURL?: string) => {
-    const cleanEmail = email.trim().toLowerCase();
-    const isAdmin = isAdminEmail(cleanEmail);
-    const displayName = name?.trim() || cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    const uid = 'user_' + Math.abs(cleanEmail.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0));
-
-    const mockUser = {
-      uid,
-      email: cleanEmail,
-      displayName,
-      photoURL: photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail)}`,
-      emailVerified: true,
-      isAnonymous: false,
-      metadata: {},
-      providerData: [],
-      refreshToken: '',
-      tenantId: null,
-      delete: async () => {},
-      getIdToken: async () => 'mock-token',
-      getIdTokenResult: async () => ({ token: 'mock-token', claims: {}, authTime: '', issuedAtTime: '', expirationTime: '', signInProvider: null, signInSecondFactor: null }),
-      reload: async () => {},
-      toJSON: () => ({})
-    } as unknown as User;
-
-    const profile: UserProfile = {
-      uid,
-      name: displayName,
-      email: cleanEmail,
-      role: isAdmin ? 'admin' : 'user',
-      profileImage: mockUser.photoURL || undefined,
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString()
-    };
-
-    localStorage.setItem('goldenguard_custom_session', JSON.stringify(profile));
-    setCurrentUser(mockUser);
-    setUserProfile(profile);
-
-    // Sync to Firestore in background if reachable
-    setDoc(doc(db, 'users', uid), {
-      uid,
-      name: displayName,
-      email: cleanEmail,
-      role: isAdmin ? 'admin' : 'user',
-      profileImage: mockUser.photoURL || '',
-      lastLogin: serverTimestamp()
-    }, { merge: true }).catch(() => {});
-  };
-
-  const fetchUserProfile = async (uid: string) => {
+  // Fetch Firestore User Profile document
+  const fetchUserProfile = async (user: User) => {
     try {
-      const docRef = doc(db, 'users', uid);
-      const docSnap = await getDoc(docRef);
-      const currentEmail = auth.currentUser?.email || currentUser?.email || '';
-      const isAdmin = isAdminEmail(currentEmail);
+      const userRef = doc(db, 'users', user.uid);
+      const docSnap = await getDoc(userRef).catch(() => null);
+      const userEmail = (user.email || '').toLowerCase().trim();
+      const isAdmin = userEmail === ADMIN_EMAIL;
 
-      if (docSnap.exists()) {
-        const profileData = docSnap.data() as UserProfile;
-        if (isAdmin || isAdminEmail(profileData.email)) {
-          profileData.role = 'admin';
-        }
-        setUserProfile(profileData);
+      if (docSnap && docSnap.exists()) {
+        const data = docSnap.data() as UserProfile;
+        setUserProfile({
+          ...data,
+          uid: user.uid,
+          email: userEmail,
+          role: isAdmin ? 'admin' : (data.role || 'user')
+        });
       } else {
-        // Create fallback profile if document doesn't exist
+        // Create initial fallback profile if doc doesn't exist yet
         const fallbackProfile: UserProfile = {
-          uid,
-          name: auth.currentUser?.displayName || currentUser?.displayName || (isAdmin ? 'Admin' : 'User'),
-          email: currentEmail,
+          uid: user.uid,
+          name: user.displayName || userEmail.split('@')[0] || 'User',
+          email: userEmail,
+          phone: user.phoneNumber || '',
+          photoURL: user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.displayName || userEmail)}`,
           role: isAdmin ? 'admin' : 'user',
           createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
+          lastLogin: new Date().toISOString()
         };
         setUserProfile(fallbackProfile);
+        await syncUserProfileDoc(user);
       }
-    } catch (error: any) {
-      console.warn("Firestore permissions or fetch issue, using local fallback profile:", error?.message || error);
-      const currentEmail = auth.currentUser?.email || currentUser?.email || '';
-      const isAdmin = isAdminEmail(currentEmail);
-      if (currentEmail) {
-        setUserProfile(prev => prev || {
-          uid,
-          name: auth.currentUser?.displayName || currentUser?.displayName || (isAdmin ? 'Admin' : 'User'),
-          email: currentEmail,
-          role: isAdmin ? 'admin' : 'user',
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-        });
-      }
+    } catch (err) {
+      console.warn("Notice: Firestore profile fetch fallback triggered:", err);
+      const userEmail = (user.email || '').toLowerCase().trim();
+      const isAdmin = userEmail === ADMIN_EMAIL;
+      setUserProfile({
+        uid: user.uid,
+        name: user.displayName || userEmail.split('@')[0] || 'User',
+        email: userEmail,
+        phone: user.phoneNumber || '',
+        photoURL: user.photoURL || '',
+        role: isAdmin ? 'admin' : 'user'
+      });
     }
   };
 
   const refreshProfile = async () => {
-    if (currentUser) {
-      await fetchUserProfile(currentUser.uid);
+    if (auth.currentUser) {
+      await fetchUserProfile(auth.currentUser);
     }
   };
 
+  // 1. Email & Password Login
+  const login = async (emailInput: string, passwordInput: string, rememberMe: boolean = true) => {
+    const trimmedEmail = emailInput.trim();
+    
+    // Set Persistence based on Remember Me
+    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence).catch(() => {});
+    
+    const credential = await signInWithEmailAndPassword(auth, trimmedEmail, passwordInput);
+    const user = credential.user;
+    
+    // Sync profile to Firestore
+    await syncUserProfileDoc(user);
+    await fetchUserProfile(user);
+    
+    return user;
+  };
+
+  // 2. Signup
+  const signup = async (fullName: string, emailInput: string, phone: string, passwordInput: string) => {
+    const trimmedName = fullName.trim();
+    const trimmedEmail = emailInput.trim();
+    const trimmedPhone = phone.trim();
+
+    const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, passwordInput);
+    const user = credential.user;
+
+    // Update Auth profile displayName
+    if (user) {
+      await updateProfile(user, {
+        displayName: trimmedName,
+        photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(trimmedName)}`
+      }).catch(() => {});
+
+      // Create Firestore User Document
+      await syncUserProfileDoc(user, { name: trimmedName, phone: trimmedPhone });
+      await fetchUserProfile(user);
+    }
+
+    return user;
+  };
+
+  // 3. Continue with Google
+  const loginWithGoogle = async (): Promise<GoogleAuthResponse> => {
+    // Check preview sandbox constraint
+    if (isGoogleAIStudioPreview()) {
+      return {
+        success: false,
+        isPreview: true,
+        error: "Google Sign-In is available only when running locally (npm run dev) or on a deployed domain due to Firebase OAuth restrictions."
+      };
+    }
+
+    try {
+      // Primary: signInWithPopup
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user) {
+        await syncUserProfileDoc(result.user);
+        await fetchUserProfile(result.user);
+        return { success: true, user: result.user };
+      }
+      return { success: false, error: 'Failed to sign in with Google' };
+    } catch (popupErr: any) {
+      console.warn('Firebase Google Popup Error:', popupErr?.code || popupErr?.message);
+
+      const code = popupErr?.code || '';
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        return { success: false, error: 'Google sign-in popup was closed.' };
+      }
+
+      // Automatic fallback to signInWithRedirect if popup fails or is blocked
+      try {
+        console.log('Attempting automatic fallback to signInWithRedirect...');
+        await signInWithRedirect(auth, googleProvider);
+        return { success: false, redirecting: true };
+      } catch (redirectErr: any) {
+        console.error('Firebase Google Redirect Error:', redirectErr);
+        const errorMsg = getAuthErrorMessage(redirectErr);
+        return { success: false, error: errorMsg };
+      }
+    }
+  };
+
+  // 4. Logout
   const logout = async () => {
     try {
-      localStorage.removeItem('goldenguard_custom_session');
+      await firebaseSignOut(auth);
       setCurrentUser(null);
       setUserProfile(null);
-      await firebaseSignOut(auth).catch(() => {});
-      toast.success('Logged out successfully');
-    } catch (error: any) {
-      toast.error(error?.message || 'Logged out');
+      toast.success('Signed out successfully');
+    } catch (err: any) {
+      toast.error('Error signing out');
     }
   };
 
+  // 5. Reset Password
+  const resetPassword = async (emailInput: string) => {
+    const trimmedEmail = emailInput.trim();
+    await sendPasswordResetEmail(auth, trimmedEmail);
+  };
+
+  // Listen to Auth state & handle redirect result
   useEffect(() => {
-    // Process redirect result if page was loaded after signInWithRedirect
+    // Process redirect result if page reloaded after signInWithRedirect
     getRedirectResult(auth)
       .then(async (result) => {
         if (result && result.user) {
-          toast.success(`Welcome ${result.user.displayName || result.user.email}!`);
+          await syncUserProfileDoc(result.user);
+          toast.success(`Welcome back, ${result.user.displayName || result.user.email}!`);
         }
       })
       .catch((err) => {
-        console.warn('Firebase Redirect Sign-In Notice:', err?.code || err?.message);
+        if (err?.code !== 'auth/popup-closed-by-user') {
+          console.warn('Firebase Redirect Sign-In notice:', err?.message || err);
+        }
       });
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
-        const userEmail = user.email || '';
-        const userRole = isAdminEmail(userEmail) ? 'admin' : 'user';
-
-        try {
-           const userRef = doc(db, 'users', user.uid);
-           const docSnap = await getDoc(userRef).catch(() => null);
-           if (docSnap && docSnap.exists()) {
-              await setDoc(userRef, { lastLogin: serverTimestamp(), role: isAdminEmail(userEmail) ? 'admin' : (docSnap.data()?.role || 'user') }, { merge: true }).catch(() => null);
-           } else {
-              await setDoc(userRef, {
-                 uid: user.uid,
-                 email: userEmail,
-                 name: user.displayName || (userRole === 'admin' ? 'Admin' : 'User'),
-                 createdAt: serverTimestamp(),
-                 lastLogin: serverTimestamp(),
-                 role: userRole
-              }, { merge: true }).catch(() => null);
-           }
-        } catch(e) {
-           console.warn("Notice: Firestore background sync skipped:", e);
-        }
-        await fetchUserProfile(user.uid);
+        await fetchUserProfile(user);
       } else {
-        // Check stored custom session
-        try {
-          const stored = localStorage.getItem('goldenguard_custom_session');
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            if (parsed && parsed.email) {
-              setCustomUserSession(parsed.email, parsed.name, parsed.profileImage);
-            } else {
-              setUserProfile(null);
-            }
-          } else {
-            setUserProfile(null);
-          }
-        } catch {
-          setUserProfile(null);
-        }
+        setCurrentUser(null);
+        setUserProfile(null);
       }
       setLoading(false);
     });
@@ -230,14 +259,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     currentUser,
     userProfile,
     loading,
+    login,
+    signup,
+    loginWithGoogle,
     logout,
-    refreshProfile,
-    setCustomUserSession
+    resetPassword,
+    refreshProfile
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

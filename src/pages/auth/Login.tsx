@@ -1,269 +1,302 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../../lib/firebase';
-import { ShieldAlert, Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { isGoogleAIStudioPreview } from '../../lib/firebase';
+import { Mail, Lock, LogIn, Eye, EyeOff, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { GoogleIcon } from '../../components/common/GoogleIcon';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { getAuthErrorMessage } from '../../utils/authErrorUtils';
-import { performGoogleAuth, isGoogleAIStudioPreview } from '../../utils/googleAuthHelper';
-import { GoogleAuthModal } from '../../components/auth/GoogleAuthModal';
 import { APP_LOGO_DATA_URI } from '../../assets/logoDataUri';
-import { useAuth } from '../../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
-  const { setCustomUserSession } = useAuth();
+  const { currentUser, login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = location.state?.from?.pathname || '/dashboard';
+  const isPreviewEnv = isGoogleAIStudioPreview();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (currentUser) {
+      navigate(from, { replace: true });
+    }
+  }, [currentUser, navigate, from]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      toast.error('Please enter both email and password.');
+
+    if (!trimmedEmail) {
+      toast.error('Please enter your email address.');
+      return;
+    }
+
+    if (!password) {
+      toast.error('Please enter your password.');
+      return;
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.error('Please enter a valid email address.');
       return;
     }
 
     try {
       setLoading(true);
-      const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
-      
-      // Update last login in Firestore if permitted
-      if (userCredential.user) {
-        const userEmail = userCredential.user.email || trimmedEmail;
-        const isAdmin = userEmail.toLowerCase().trim() === 'nitesh933438@gmail.com';
-        const userRef = doc(db, 'users', userCredential.user.uid);
-        getDoc(userRef).then((snap) => {
-          if (snap.exists()) {
-            setDoc(userRef, { lastLogin: serverTimestamp(), role: isAdmin ? 'admin' : (snap.data().role || 'user') }, { merge: true }).catch(() => {});
-          } else {
-            setDoc(userRef, {
-              uid: userCredential.user.uid,
-              name: userCredential.user.displayName || (isAdmin ? 'Admin' : 'User'),
-              email: userEmail,
-              role: isAdmin ? 'admin' : 'user',
-              createdAt: serverTimestamp(),
-              lastLogin: serverTimestamp(),
-            }, { merge: true }).catch(() => {});
-          }
-        }).catch(() => {});
-      }
-
-      toast.success('Successfully logged in!');
+      await login(trimmedEmail, password, rememberMe);
+      toast.success('Signed in successfully!');
       navigate(from, { replace: true });
     } catch (error: any) {
-      const code = error?.code || '';
-      if (
-        code === 'auth/unauthorized-domain' ||
-        code === 'auth/operation-not-allowed' ||
-        code === 'auth/user-not-found' ||
-        code === 'auth/invalid-credential' ||
-        code === 'auth/wrong-password'
-      ) {
-        setCustomUserSession(trimmedEmail);
-        toast.success('Successfully logged in!');
-        navigate(from, { replace: true });
-      } else {
-        const friendlyError = getAuthErrorMessage(error);
-        toast.error(friendlyError);
-      }
+      const friendlyError = getAuthErrorMessage(error);
+      toast.error(friendlyError, { duration: 4000 });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleSignIn = async () => {
+    if (isPreviewEnv) {
+      toast.error(
+        'Google Sign-In is available only when running locally (npm run dev) or on a deployed domain due to Firebase OAuth restrictions.',
+        { duration: 6000, id: 'google-preview-toast' }
+      );
+      return;
+    }
+
     try {
-      setLoading(true);
-      const res = await performGoogleAuth();
+      setGoogleLoading(true);
+      const res = await loginWithGoogle();
+
       if (res.success && res.user) {
-        toast.success(`Welcome ${res.user.displayName || 'back'}!`);
+        toast.success(`Welcome back, ${res.user.displayName || res.user.email}!`);
         navigate(from, { replace: true });
       } else if (res.isPreview) {
-        toast.error('Google Sign-In is unavailable in AI Studio Preview. Please run the app locally (npm run dev) or on a deployed domain.', { duration: 6000 });
-        if (res.requiresGmailInput) {
-          setIsGoogleModalOpen(true);
-        }
+        toast.error(
+          'Google Sign-In is available only when running locally (npm run dev) or on a deployed domain due to Firebase OAuth restrictions.',
+          { duration: 6000 }
+        );
       } else if (res.redirecting) {
         toast.loading('Redirecting to Google Sign-In...');
-      } else if (res.requiresGmailInput) {
-        setIsGoogleModalOpen(true);
       } else if (res.error) {
         toast.error(res.error);
       }
-    } catch (error: any) {
-      const friendlyError = getAuthErrorMessage(error);
-      toast.error(friendlyError);
+    } catch (err: any) {
+      const friendlyMsg = getAuthErrorMessage(err);
+      toast.error(friendlyMsg);
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors duration-300">
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Brand Logo & Name */}
         <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg bg-slate-900 border border-amber-500/40 p-0.5">
-            <img 
-              src={APP_LOGO_DATA_URI} 
-              alt="GoldenGuard Logo" 
-              className="w-full h-full object-cover rounded-xl" 
-            />
-          </div>
+          <Link to="/" className="group flex flex-col items-center focus:outline-none" aria-label="Go to Home">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-xl bg-slate-900 border-2 border-amber-500/40 p-0.5 group-hover:scale-105 transition-transform">
+              <img 
+                src={APP_LOGO_DATA_URI} 
+                alt="GoldenGuard Logo" 
+                className="w-full h-full object-cover rounded-xl" 
+              />
+            </div>
+            <span className="mt-3 font-bold text-2xl tracking-tight gradient-text">
+              GoldenGuard
+            </span>
+          </Link>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-          Sign in to your account
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-          Or{' '}
-          <Link to="/signup" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400">
-            create a new account
+
+        <h1 className="mt-4 text-center text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          Welcome Back
+        </h1>
+        <p className="mt-2 text-center text-sm text-slate-600 dark:text-slate-400">
+          Don't have an account?{' '}
+          <Link 
+            to="/signup" 
+            className="font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 focus:outline-none focus:underline transition-colors"
+          >
+            Create an account
           </Link>
         </p>
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"
       >
-        <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-100 dark:border-gray-700">
-          <form className="space-y-6" onSubmit={handleEmailLogin}>
+        <div className="glass backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 py-8 px-6 sm:px-10 shadow-2xl rounded-3xl border border-slate-200/80 dark:border-slate-800/80">
+          <form className="space-y-5" onSubmit={handleEmailLogin} noValidate>
+            
+            {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email address
+              <label 
+                htmlFor="login-email" 
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
+              >
+                Email Address
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                  <Mail className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <input
-                  id="email"
+                  id="login-email"
                   name="email"
                   type="email"
                   autoComplete="email"
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white py-2 disabled:opacity-60"
-                  placeholder="you@example.com"
+                  className="block w-full pl-11 pr-4 py-3 text-sm text-slate-900 dark:text-white bg-slate-50/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 transition-all outline-none disabled:opacity-60"
+                  placeholder="name@example.com"
+                  aria-required="true"
                 />
               </div>
             </div>
 
+            {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Password
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+              <div className="flex items-center justify-between mb-1.5">
+                <label 
+                  htmlFor="login-password" 
+                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider"
+                >
+                  Password
+                </label>
+                <Link 
+                  to="/forgot-password" 
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 focus:outline-none focus:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                  <Lock className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <input
-                  id="password"
+                  id="login-password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 sm:text-sm border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white py-2 disabled:opacity-60"
+                  className="block w-full pl-11 pr-11 py-3 text-sm text-slate-900 dark:text-white bg-slate-50/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 transition-all outline-none disabled:opacity-60"
                   placeholder="••••••••"
+                  aria-required="true"
                 />
                 <button
                   type="button"
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  title={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center justify-between pt-1">
               <div className="flex items-center">
                 <input
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 cursor-pointer"
                 />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
-                  Remember me
+                <label htmlFor="remember-me" className="ml-2.5 block text-sm text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                  Remember me on this device
                 </label>
-              </div>
-
-              <div className="text-sm">
-                <Link to="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400">
-                  Forgot your password?
-                </Link>
               </div>
             </div>
 
-            <div>
+            {/* Submit Button */}
+            <div className="pt-2">
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={loading || googleLoading}
+                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-lg shadow-indigo-500/20 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                aria-label="Sign in with email and password"
               >
-                {loading ? 'Signing in...' : 'Sign in'}
-                {!loading && <LogIn className="ml-2 h-5 w-5" />}
+                {loading ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Signing in...</span>
+                  </div>
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <LogIn className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </button>
             </div>
           </form>
 
+          {/* Social Login Divider */}
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">Or continue with</span>
+              <div className="relative flex justify-center text-xs uppercase tracking-wider font-semibold">
+                <span className="px-3 bg-white/90 dark:bg-slate-900/90 text-slate-500 dark:text-slate-400">
+                  Or continue with
+                </span>
               </div>
             </div>
 
-            <div className="mt-6">
+            {/* Google Sign-In Area */}
+            <div className="mt-5 space-y-3">
               <button
                 type="button"
-                onClick={handleGoogleLogin}
-                disabled={loading}
-                className="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                onClick={handleGoogleSignIn}
+                disabled={loading || googleLoading}
+                className="w-full flex justify-center items-center py-3 px-4 border border-slate-300 dark:border-slate-700 rounded-xl shadow-sm bg-white dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all cursor-pointer"
+                aria-label="Continue with Google"
               >
-                <GoogleIcon />
-                <span className="ml-2">Continue with Google</span>
+                {googleLoading ? (
+                  <div className="w-5 h-5 border-2 border-slate-400 border-t-indigo-600 rounded-full animate-spin mr-2" />
+                ) : (
+                  <GoogleIcon className="h-5 w-5 mr-2.5" />
+                )}
+                <span>Continue with Google</span>
               </button>
-              {isGoogleAIStudioPreview() && (
-                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 text-center font-medium">
-                  Google Sign-In is unavailable in AI Studio Preview. Please run the app locally (<code className="bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5 rounded text-[10px]">npm run dev</code>) or on a deployed domain.
-                </p>
+
+              {/* AI Studio Preview Domain Restriction Notice */}
+              {isPreviewEnv && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 flex items-start space-x-2.5 text-xs leading-relaxed">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Notice:</strong> Google Sign-In is available only when running locally (<code className="bg-amber-200/50 dark:bg-amber-900/50 px-1 py-0.5 rounded font-mono text-[11px]">npm run dev</code>) or on a deployed domain due to Firebase OAuth restrictions.
+                  </p>
+                </div>
               )}
             </div>
           </div>
         </div>
       </motion.div>
-
-      <GoogleAuthModal
-        isOpen={isGoogleModalOpen}
-        onClose={() => setIsGoogleModalOpen(false)}
-        onSuccess={(user) => {
-          toast.success(`Welcome ${user.displayName || 'back'}!`);
-          navigate(from, { replace: true });
-        }}
-      />
     </div>
   );
 };
-

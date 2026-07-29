@@ -1,9 +1,15 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { getFirestore } from "firebase/firestore";
-import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  setPersistence, 
+  browserLocalPersistence,
+  User 
+} from "firebase/auth";
 
-// Firebase configuration
+// Firebase configuration with environment variables and production fallbacks
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCNp5BKQzIlAHrUL7go41uz4cal8Hjpdnc",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "road-safety-44577.firebaseapp.com",
@@ -14,17 +20,18 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-40E4J8DK4R"
 };
 
-// Initialize Firebase
+// Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-// Enforce browser local persistence to maintain session across refreshes
+// Enforce browser local persistence to maintain session across page refreshes
 setPersistence(auth, browserLocalPersistence).catch((err) => {
-  console.warn("Firebase Auth persistence configuration warning:", err?.message || err);
+  console.warn("Firebase Auth persistence setup warning:", err?.message || err);
 });
 
+// Configure Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account'
@@ -43,5 +50,78 @@ if (typeof window !== "undefined") {
   }).catch(() => {});
 }
 
-export default app;
+/**
+ * Detects if the application is running inside Google AI Studio Preview sandbox.
+ */
+export function isGoogleAIStudioPreview(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return (
+    host.includes('ais-dev-') ||
+    host.includes('ais-pre-') ||
+    host.includes('cloudworkstations.dev') ||
+    host.includes('webcontainer')
+  );
+}
 
+const ADMIN_EMAIL = 'nitesh933438@gmail.com';
+
+/**
+ * Syncs or creates the Firestore document in the 'users' collection for the authenticated user.
+ */
+export async function syncUserProfileDoc(
+  user: User, 
+  additionalData?: { name?: string; phone?: string }
+) {
+  if (!user || !user.uid) return null;
+
+  const userEmail = (user.email || '').toLowerCase().trim();
+  const isAdmin = userEmail === ADMIN_EMAIL;
+  const userRef = doc(db, 'users', user.uid);
+
+  const fallbackName = additionalData?.name?.trim() || 
+    user.displayName || 
+    (userEmail ? userEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'User');
+
+  const photoURL = user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fallbackName)}`;
+
+  try {
+    const snap = await getDoc(userRef).catch(() => null);
+    
+    if (snap && snap.exists()) {
+      // Existing user -> update lastLogin and sync role/phone/photo if provided
+      const existingData = snap.data();
+      const updatePayload: Record<string, any> = {
+        lastLogin: serverTimestamp(),
+        role: isAdmin ? 'admin' : (existingData.role || 'user')
+      };
+      if (additionalData?.name) updatePayload.name = additionalData.name;
+      if (additionalData?.phone) updatePayload.phone = additionalData.phone;
+      if (user.photoURL) updatePayload.photoURL = user.photoURL;
+
+      await setDoc(userRef, updatePayload, { merge: true }).catch((err) => {
+        console.warn("Firestore user sync update notice:", err?.message || err);
+      });
+    } else {
+      // New user document creation
+      const newDoc = {
+        uid: user.uid,
+        name: fallbackName,
+        email: userEmail,
+        phone: additionalData?.phone || user.phoneNumber || '',
+        photoURL: photoURL,
+        role: isAdmin ? 'admin' : 'user',
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp()
+      };
+
+      await setDoc(userRef, newDoc, { merge: true }).catch((err) => {
+        console.warn("Firestore new user creation notice:", err?.message || err);
+      });
+    }
+  } catch (e) {
+    console.warn("Firestore sync skipped:", e);
+  }
+}
+
+export default app;
