@@ -10,7 +10,7 @@
 
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import { CustomToaster } from './components/ui/CustomToaster';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -64,7 +64,7 @@ export default function App() {
           <NotificationProvider>
             <DemoProvider>
               <BrowserRouter>
-              <Toaster position="top-right" />
+              <CustomToaster />
               <OfflineBanner />
               <InstallPrompt />
               <PushNotificationSimulator />
