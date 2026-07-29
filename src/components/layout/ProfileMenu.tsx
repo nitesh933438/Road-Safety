@@ -9,7 +9,6 @@ import { User, Settings, Bell, Sun, Moon, Globe, HelpCircle, LogOut, Shield } fr
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { LanguageSwitcher } from './LanguageSwitcher';
 
 export const ProfileMenu: React.FC = () => {
   const { currentUser, userProfile, logout } = useAuth();
@@ -131,14 +130,6 @@ export const ProfileMenu: React.FC = () => {
                   {theme}
                 </span>
               </button>
-
-              <div className="px-4 py-2 flex items-center justify-between">
-                <div className="flex items-center">
-                  <Globe className="w-4 h-4 mr-3 text-sky-500" />
-                  <span>Language</span>
-                </div>
-                <LanguageSwitcher />
-              </div>
 
               <Link
                 to="/about"

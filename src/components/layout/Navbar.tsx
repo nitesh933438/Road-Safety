@@ -35,7 +35,6 @@ import { APP_LOGO_DATA_URI } from '../../assets/logoDataUri';
 import { Breadcrumbs } from './Breadcrumbs';
 import { WeatherWidget } from './WeatherWidget';
 import { LiveStatusWidget } from './LiveStatusWidget';
-import { LanguageSwitcher } from './LanguageSwitcher';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { ProfileMenu } from './ProfileMenu';
 
@@ -155,11 +154,6 @@ export const Navbar: React.FC = () => {
               {/* Notification Bell */}
               <NotificationBell />
 
-              {/* Language Switcher */}
-              <div className="hidden lg:block">
-                <LanguageSwitcher />
-              </div>
-
               {/* Dark/Light Theme Switcher */}
               <button
                 onClick={toggleTheme}
@@ -232,23 +226,41 @@ export const Navbar: React.FC = () => {
             >
               {/* User Bar */}
               {currentUser ? (
-                <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between">
-                  <div className="flex items-center space-x-3 truncate">
-                    <div className="h-9 w-9 rounded-full bg-indigo-600 text-white font-black text-sm flex items-center justify-center shrink-0">
-                      {userProfile?.name?.charAt(0) || currentUser.email?.charAt(0) || 'U'}
+                <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3 truncate">
+                      <div className="h-9 w-9 rounded-full bg-indigo-600 text-white font-black text-sm flex items-center justify-center shrink-0">
+                        {userProfile?.name?.charAt(0) || currentUser.email?.charAt(0) || 'U'}
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-black text-slate-900 dark:text-white truncate">{userProfile?.name || 'User'}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{currentUser.email}</p>
+                      </div>
                     </div>
-                    <div className="truncate">
-                      <p className="text-xs font-black text-slate-900 dark:text-white truncate">{userProfile?.name || 'User'}</p>
-                      <p className="text-[10px] text-slate-500 truncate">{currentUser.email}</p>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="px-2.5 py-1 rounded-xl text-[10px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                    >
+                      Sign Out
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="px-2.5 py-1 rounded-xl text-[10px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
-                  >
-                    Sign Out
-                  </button>
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-indigo-100 dark:border-indigo-900/60 text-xs font-extrabold">
+                    <Link
+                      to="/profile"
+                      onClick={handleLinkClick}
+                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-300 text-center shadow-2xs"
+                    >
+                      My Profile
+                    </Link>
+                    <Link
+                      to="/settings"
+                      onClick={handleLinkClick}
+                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-center shadow-2xs"
+                    >
+                      Settings
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <Link
@@ -259,12 +271,6 @@ export const Navbar: React.FC = () => {
                   Sign In to GoldenGuard
                 </Link>
               )}
-
-              {/* Language Switcher Mobile */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Select Language</span>
-                <LanguageSwitcher />
-              </div>
 
               {/* Nav links */}
               <div className="space-y-1">
