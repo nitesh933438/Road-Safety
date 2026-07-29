@@ -10,7 +10,7 @@ import { getAuthErrorMessage } from '../../utils/authErrorUtils';
 import { APP_LOGO_DATA_URI } from '../../assets/logoDataUri';
 
 export const LoginPage: React.FC = () => {
-  const { currentUser, login, loginWithGoogle } = useAuth();
+  const { currentUser, userProfile, login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
@@ -21,15 +21,28 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const fromLocation = location.state?.from?.pathname;
   const isPreviewEnv = isGoogleAIStudioPreview();
+
+  const determineRedirectPath = (role?: string, userEmail?: string | null) => {
+    const isAdmin = role === 'admin' || userEmail?.toLowerCase() === 'nitesh933438@gmail.com';
+    if (isAdmin) {
+      return '/admin';
+    }
+    // If non-admin attempted to visit /admin before login, redirect to /dashboard
+    if (fromLocation && fromLocation !== '/login' && fromLocation !== '/' && fromLocation !== '/admin') {
+      return fromLocation;
+    }
+    return '/dashboard';
+  };
 
   // Redirect if already authenticated
   useEffect(() => {
     if (currentUser) {
-      navigate(from, { replace: true });
+      const dest = determineRedirectPath(userProfile?.role, currentUser.email);
+      navigate(dest, { replace: true });
     }
-  }, [currentUser, navigate, from]);
+  }, [currentUser, userProfile, navigate]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,9 +67,13 @@ export const LoginPage: React.FC = () => {
 
     try {
       setLoading(true);
-      await login(trimmedEmail, password, rememberMe);
+      const user = await login(trimmedEmail, password, rememberMe);
+      const isAdminEmail = user.email?.toLowerCase() === 'nitesh933438@gmail.com';
+      const role = isAdminEmail ? 'admin' : (userProfile?.role || 'citizen');
+      const dest = determineRedirectPath(role, user.email);
+
       toast.success('Signed in successfully!');
-      navigate(from, { replace: true });
+      navigate(dest, { replace: true });
     } catch (error: any) {
       const friendlyError = getAuthErrorMessage(error);
       toast.error(friendlyError, { duration: 4000 });
@@ -79,8 +96,12 @@ export const LoginPage: React.FC = () => {
       const res = await loginWithGoogle();
 
       if (res.success && res.user) {
+        const isAdminEmail = res.user.email?.toLowerCase() === 'nitesh933438@gmail.com';
+        const role = isAdminEmail ? 'admin' : (userProfile?.role || 'citizen');
+        const dest = determineRedirectPath(role, res.user.email);
+
         toast.success(`Welcome back, ${res.user.displayName || res.user.email}!`);
-        navigate(from, { replace: true });
+        navigate(dest, { replace: true });
       } else if (res.isPreview) {
         toast.error(
           'Google Sign-In is available only when running locally (npm run dev) or on a deployed domain due to Firebase OAuth restrictions.',
