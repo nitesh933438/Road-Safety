@@ -14,7 +14,9 @@ import { CustomToaster } from './components/ui/CustomToaster';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { LocationProvider } from './context/LocationContext';
 import { DemoProvider } from './context/DemoContext';
+import { LocationDetailsModal } from './components/location/LocationDetailsModal';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AdminRoute } from './components/auth/AdminRoute';
@@ -62,9 +64,11 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <NotificationProvider>
-            <DemoProvider>
-              <BrowserRouter>
-              <CustomToaster />
+            <LocationProvider>
+              <DemoProvider>
+                <BrowserRouter>
+                <CustomToaster />
+                <LocationDetailsModal />
               <OfflineBanner />
               <InstallPrompt />
               <PushNotificationSimulator />
@@ -111,7 +115,8 @@ export default function App() {
               </Layout>
             </BrowserRouter>
           </DemoProvider>
-        </NotificationProvider>
+        </LocationProvider>
+      </NotificationProvider>
       </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

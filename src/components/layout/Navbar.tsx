@@ -35,6 +35,7 @@ import { APP_LOGO_DATA_URI } from '../../assets/logoDataUri';
 import { Breadcrumbs } from './Breadcrumbs';
 import { WeatherWidget } from './WeatherWidget';
 import { LiveStatusWidget } from './LiveStatusWidget';
+import { LocationWidget } from '../location/LocationWidget';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { ProfileMenu } from './ProfileMenu';
 
@@ -143,6 +144,9 @@ export const Navbar: React.FC = () => {
 
             {/* RIGHT SIDE: Widgets, Bell, Theme, Profile */}
             <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
+              {/* Location Widget */}
+              <LocationWidget />
+
               {/* Weather Widget */}
               <WeatherWidget />
 
