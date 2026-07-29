@@ -76,25 +76,50 @@ const ADMIN_EMAIL = 'nitesh933438@gmail.com';
  */
 export function determineUserRole(
   user: User, 
-  additionalRole?: UserRole, 
+  activeProvider?: string, 
   existingRole?: UserRole
 ): UserRole {
   if (!user) return 'citizen';
   const userEmail = (user.email || '').toLowerCase().trim();
-  const isGoogleProvider = user.providerData?.some(p => p.providerId === 'google.com') || false;
 
+  // 1. Detect active provider
+  let provider = activeProvider;
+  if (!provider && typeof window !== 'undefined') {
+    provider = localStorage.getItem('gg_auth_provider') || undefined;
+  }
+
+  // Fallback to inspecting user.providerData
+  if (!provider) {
+    const isGoogle = user.providerData?.some(p => p.providerId === 'google.com');
+    const isPassword = user.providerData?.some(p => p.providerId === 'password');
+    if (isGoogle && !isPassword) {
+      provider = 'google.com';
+    } else if (isPassword && !isGoogle) {
+      provider = 'password';
+    } else if (isGoogle) {
+      provider = 'google.com';
+    } else {
+      provider = 'password';
+    }
+  }
+
+  // 2. Strict Admin Role Evaluation
   if (userEmail === ADMIN_EMAIL) {
-    if (isGoogleProvider) {
+    if (provider === 'google.com') {
       return 'admin';
     } else {
-      // Password or non-Google logins for nitesh933438@gmail.com MUST NOT get admin access
+      // Email/Password login for nitesh933438@gmail.com gets citizen
       return 'citizen';
     }
   }
 
-  // For all other users:
-  const desiredRole = additionalRole || existingRole || 'citizen';
-  return desiredRole === 'admin' ? 'citizen' : desiredRole;
+  // 3. For all other users:
+  // Keep their existing Firestore role if it exists (e.g. volunteer, hospital, police, citizen);
+  // otherwise default to citizen.
+  if (existingRole && existingRole !== 'admin') {
+    return existingRole;
+  }
+  return 'citizen';
 }
 
 /**
@@ -102,7 +127,7 @@ export function determineUserRole(
  */
 export async function syncUserProfileDoc(
   user: User, 
-  additionalData?: { name?: string; phone?: string; role?: UserRole }
+  additionalData?: { name?: string; phone?: string; role?: UserRole; activeProvider?: string }
 ) {
   if (!user || !user.uid) return null;
 
@@ -118,10 +143,10 @@ export async function syncUserProfileDoc(
   try {
     const snap = await getDoc(userRef).catch(() => null);
     const existingData = snap && snap.exists() ? snap.data() : null;
-    const computedRole = determineUserRole(user, additionalData?.role, existingData?.role);
+    const computedRole = determineUserRole(user, additionalData?.activeProvider, existingData?.role);
 
     if (snap && snap.exists()) {
-      // Existing user -> update lastLogin and sync role/phone/photo if provided
+      // Existing user -> update lastLogin and sync role
       const updatePayload: Record<string, any> = {
         lastLogin: serverTimestamp(),
         role: computedRole
@@ -150,8 +175,10 @@ export async function syncUserProfileDoc(
         console.warn("Firestore new user creation notice:", err?.message || err);
       });
     }
+    return computedRole;
   } catch (e) {
     console.warn("Firestore sync skipped:", e);
+    return determineUserRole(user, additionalData?.activeProvider);
   }
 }
 

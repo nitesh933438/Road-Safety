@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
 
   // Fetch Firestore User Profile document
-  const fetchUserProfile = async (user: User) => {
+  const fetchUserProfile = async (user: User, activeProvider?: string) => {
     try {
       const userRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(userRef).catch(() => null);
@@ -84,7 +84,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (docSnap && docSnap.exists()) {
         const data = docSnap.data() as UserProfile;
-        const computedRole = determineUserRole(user, undefined, data.role);
+        const computedRole = determineUserRole(user, activeProvider, data.role);
+        
+        // Ensure Firestore role is synced if computedRole is updated
+        if (data.role !== computedRole) {
+          await setDoc(userRef, { role: computedRole, lastLogin: serverTimestamp() }, { merge: true }).catch(() => {});
+        }
+
         setUserProfile({
           ...data,
           uid: user.uid,
@@ -93,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       } else {
         // Create initial fallback profile if doc doesn't exist yet
-        const computedRole = determineUserRole(user);
+        const computedRole = determineUserRole(user, activeProvider);
         const fallbackProfile: UserProfile = {
           uid: user.uid,
           name: user.displayName || userEmail.split('@')[0] || 'User',
@@ -105,12 +111,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           lastLogin: new Date().toISOString()
         };
         setUserProfile(fallbackProfile);
-        await syncUserProfileDoc(user);
+        await syncUserProfileDoc(user, { activeProvider });
       }
     } catch (err) {
       console.warn("Notice: Firestore profile fetch fallback triggered:", err);
       const userEmail = (user.email || '').toLowerCase().trim();
-      const computedRole = determineUserRole(user);
+      const computedRole = determineUserRole(user, activeProvider);
       setUserProfile({
         uid: user.uid,
         name: user.displayName || userEmail.split('@')[0] || 'User',
@@ -132,15 +138,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (emailInput: string, passwordInput: string, rememberMe: boolean = true) => {
     const trimmedEmail = emailInput.trim();
     
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gg_auth_provider', 'password');
+    }
+
     // Set Persistence based on Remember Me
     await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence).catch(() => {});
     
     const credential = await signInWithEmailAndPassword(auth, trimmedEmail, passwordInput);
     const user = credential.user;
     
-    // Sync profile to Firestore
-    await syncUserProfileDoc(user);
-    await fetchUserProfile(user);
+    // Sync profile to Firestore with password provider
+    await syncUserProfileDoc(user, { activeProvider: 'password' });
+    await fetchUserProfile(user, 'password');
     
     return user;
   };
@@ -150,6 +160,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const trimmedName = fullName.trim();
     const trimmedEmail = emailInput.trim();
     const trimmedPhone = phone.trim();
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gg_auth_provider', 'password');
+    }
 
     const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, passwordInput);
     const user = credential.user;
@@ -162,8 +176,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
 
       // Create Firestore User Document with selected role
-      await syncUserProfileDoc(user, { name: trimmedName, phone: trimmedPhone, role: selectedRole });
-      await fetchUserProfile(user);
+      await syncUserProfileDoc(user, { name: trimmedName, phone: trimmedPhone, role: selectedRole, activeProvider: 'password' });
+      await fetchUserProfile(user, 'password');
     }
 
     return user;
@@ -181,11 +195,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gg_auth_provider', 'google.com');
+      }
+
       // Primary: signInWithPopup
       const result = await signInWithPopup(auth, googleProvider);
       if (result.user) {
-        await syncUserProfileDoc(result.user);
-        await fetchUserProfile(result.user);
+        await syncUserProfileDoc(result.user, { activeProvider: 'google.com' });
+        await fetchUserProfile(result.user, 'google.com');
         return { success: true, user: result.user };
       }
       return { success: false, error: 'Failed to sign in with Google' };
@@ -213,6 +231,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 4. Logout
   const logout = async () => {
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('gg_auth_provider');
+      }
       await firebaseSignOut(auth);
       setCurrentUser(null);
       setUserProfile(null);
@@ -234,7 +255,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     getRedirectResult(auth)
       .then(async (result) => {
         if (result && result.user) {
-          await syncUserProfileDoc(result.user);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('gg_auth_provider', 'google.com');
+          }
+          await syncUserProfileDoc(result.user, { activeProvider: 'google.com' });
+          await fetchUserProfile(result.user, 'google.com');
           toast.success(`Welcome back, ${result.user.displayName || result.user.email}!`);
         }
       })

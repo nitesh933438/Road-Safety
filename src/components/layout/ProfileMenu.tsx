@@ -86,6 +86,17 @@ export const ProfileMenu: React.FC = () => {
 
             {/* Menu Links */}
             <div className="py-2 space-y-0.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+              {userRole === 'admin' && (
+                <Link
+                  to="/admin"
+                  onClick={() => setIsOpen(false)}
+                  className="px-4 py-2 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 flex items-center transition-colors border-l-2 border-amber-500"
+                >
+                  <Shield className="w-4 h-4 mr-3 text-amber-500" />
+                  <span>Admin Panel</span>
+                </Link>
+              )}
+
               <Link
                 to="/profile"
                 onClick={() => setIsOpen(false)}

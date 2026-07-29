@@ -68,7 +68,7 @@ export const NotificationsPage: React.FC = () => {
   } = useNotifications();
 
   const { currentUser, userProfile } = useAuth();
-  const isAdmin = userProfile?.role === 'admin' || currentUser?.email === 'nitesh933438@gmail.com';
+  const isAdmin = userProfile?.role === 'admin';
 
   const [activeTab, setActiveTab] = useState<'center' | 'broadcast' | 'settings'>('center');
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);

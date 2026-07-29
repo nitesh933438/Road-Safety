@@ -24,8 +24,8 @@ export const LoginPage: React.FC = () => {
   const fromLocation = location.state?.from?.pathname;
   const isPreviewEnv = isGoogleAIStudioPreview();
 
-  const determineRedirectPath = (user: any, firestoreRole?: string) => {
-    const computedRole = user ? determineUserRole(user, undefined, firestoreRole as any) : (firestoreRole || 'citizen');
+  const determineRedirectPath = (user: any, firestoreRole?: string, activeProvider?: string) => {
+    const computedRole = user ? determineUserRole(user, activeProvider, firestoreRole as any) : (firestoreRole || 'citizen');
     if (computedRole === 'admin') {
       return '/admin';
     }
@@ -68,7 +68,7 @@ export const LoginPage: React.FC = () => {
     try {
       setLoading(true);
       const user = await login(trimmedEmail, password, rememberMe);
-      const dest = determineRedirectPath(user, userProfile?.role);
+      const dest = determineRedirectPath(user, userProfile?.role, 'password');
 
       toast.success('Signed in successfully!');
       navigate(dest, { replace: true });
@@ -94,7 +94,7 @@ export const LoginPage: React.FC = () => {
       const res = await loginWithGoogle();
 
       if (res.success && res.user) {
-        const dest = determineRedirectPath(res.user, userProfile?.role);
+        const dest = determineRedirectPath(res.user, userProfile?.role, 'google.com');
 
         toast.success(`Welcome back, ${res.user.displayName || res.user.email}!`);
         navigate(dest, { replace: true });
