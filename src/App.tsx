@@ -13,6 +13,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { DemoProvider } from './context/DemoContext';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -53,14 +54,16 @@ const EmergencyCommandCenterPage = lazy(() => import('./pages/EmergencyCommandCe
 const RoadHazardPage = lazy(() => import('./pages/RoadHazardPage').then(module => ({ default: module.RoadHazardPage })));
 const DrivingGuardianPage = lazy(() => import('./pages/DrivingGuardianPage').then(module => ({ default: module.DrivingGuardianPage })));
 const PresentationModePage = lazy(() => import('./pages/PresentationModePage').then(module => ({ default: module.PresentationModePage })));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(module => ({ default: module.NotificationsPage })));
 
 export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <DemoProvider>
-            <BrowserRouter>
+          <NotificationProvider>
+            <DemoProvider>
+              <BrowserRouter>
               <Toaster position="top-right" />
               <OfflineBanner />
               <InstallPrompt />
@@ -92,6 +95,7 @@ export default function App() {
                     <Route path="/specs" element={<SystemSpecs />} />
                     <Route path="/about" element={<AboutHackathon />} />
                     <Route path="/presentation" element={<PresentationModePage />} />
+                    <Route path="/notifications" element={<NotificationsPage />} />
                     
                     {/* Admin Protected Route */}
                     <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
@@ -107,7 +111,8 @@ export default function App() {
               </Layout>
             </BrowserRouter>
           </DemoProvider>
-        </AuthProvider>
+        </NotificationProvider>
+      </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
