@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { isGoogleAIStudioPreview } from '../../lib/firebase';
+import { isGoogleAIStudioPreview, determineUserRole } from '../../lib/firebase';
 import { Mail, Lock, LogIn, Eye, EyeOff, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { GoogleIcon } from '../../components/common/GoogleIcon';
 import toast from 'react-hot-toast';
@@ -24,12 +24,12 @@ export const LoginPage: React.FC = () => {
   const fromLocation = location.state?.from?.pathname;
   const isPreviewEnv = isGoogleAIStudioPreview();
 
-  const determineRedirectPath = (role?: string, userEmail?: string | null) => {
-    const isAdmin = role === 'admin' || userEmail?.toLowerCase() === 'nitesh933438@gmail.com';
-    if (isAdmin) {
+  const determineRedirectPath = (user: any, firestoreRole?: string) => {
+    const computedRole = user ? determineUserRole(user, undefined, firestoreRole as any) : (firestoreRole || 'citizen');
+    if (computedRole === 'admin') {
       return '/admin';
     }
-    // If non-admin attempted to visit /admin before login, redirect to /dashboard
+    // If non-admin attempted to visit a protected route before login, redirect back to it unless it's /admin
     if (fromLocation && fromLocation !== '/login' && fromLocation !== '/' && fromLocation !== '/admin') {
       return fromLocation;
     }
@@ -39,7 +39,7 @@ export const LoginPage: React.FC = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (currentUser) {
-      const dest = determineRedirectPath(userProfile?.role, currentUser.email);
+      const dest = determineRedirectPath(currentUser, userProfile?.role);
       navigate(dest, { replace: true });
     }
   }, [currentUser, userProfile, navigate]);
@@ -68,9 +68,7 @@ export const LoginPage: React.FC = () => {
     try {
       setLoading(true);
       const user = await login(trimmedEmail, password, rememberMe);
-      const isAdminEmail = user.email?.toLowerCase() === 'nitesh933438@gmail.com';
-      const role = isAdminEmail ? 'admin' : (userProfile?.role || 'citizen');
-      const dest = determineRedirectPath(role, user.email);
+      const dest = determineRedirectPath(user, userProfile?.role);
 
       toast.success('Signed in successfully!');
       navigate(dest, { replace: true });
@@ -96,9 +94,7 @@ export const LoginPage: React.FC = () => {
       const res = await loginWithGoogle();
 
       if (res.success && res.user) {
-        const isAdminEmail = res.user.email?.toLowerCase() === 'nitesh933438@gmail.com';
-        const role = isAdminEmail ? 'admin' : (userProfile?.role || 'citizen');
-        const dest = determineRedirectPath(role, res.user.email);
+        const dest = determineRedirectPath(res.user, userProfile?.role);
 
         toast.success(`Welcome back, ${res.user.displayName || res.user.email}!`);
         navigate(dest, { replace: true });

@@ -15,7 +15,7 @@ import {
   browserSessionPersistence
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, googleProvider, syncUserProfileDoc, isGoogleAIStudioPreview, UserRole } from '../lib/firebase';
+import { auth, db, googleProvider, syncUserProfileDoc, isGoogleAIStudioPreview, UserRole, determineUserRole } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { getAuthErrorMessage } from '../utils/authErrorUtils';
 
@@ -81,27 +81,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(userRef).catch(() => null);
       const userEmail = (user.email || '').toLowerCase().trim();
-      const isAdmin = userEmail === ADMIN_EMAIL;
 
       if (docSnap && docSnap.exists()) {
         const data = docSnap.data() as UserProfile;
-        const targetRole = data.role || 'citizen';
-        const sanitizedRole: UserRole = isAdmin ? 'admin' : (targetRole === 'admin' ? 'citizen' : targetRole);
+        const computedRole = determineUserRole(user, undefined, data.role);
         setUserProfile({
           ...data,
           uid: user.uid,
           email: userEmail,
-          role: sanitizedRole
+          role: computedRole
         });
       } else {
         // Create initial fallback profile if doc doesn't exist yet
+        const computedRole = determineUserRole(user);
         const fallbackProfile: UserProfile = {
           uid: user.uid,
           name: user.displayName || userEmail.split('@')[0] || 'User',
           email: userEmail,
           phone: user.phoneNumber || '',
           photoURL: user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.displayName || userEmail)}`,
-          role: isAdmin ? 'admin' : 'citizen',
+          role: computedRole,
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString()
         };
@@ -111,14 +110,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn("Notice: Firestore profile fetch fallback triggered:", err);
       const userEmail = (user.email || '').toLowerCase().trim();
-      const isAdmin = userEmail === ADMIN_EMAIL;
+      const computedRole = determineUserRole(user);
       setUserProfile({
         uid: user.uid,
         name: user.displayName || userEmail.split('@')[0] || 'User',
         email: userEmail,
         phone: user.phoneNumber || '',
         photoURL: user.photoURL || '',
-        role: isAdmin ? 'admin' : 'citizen'
+        role: computedRole
       });
     }
   };

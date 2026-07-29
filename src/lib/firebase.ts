@@ -69,6 +69,35 @@ export type UserRole = 'citizen' | 'volunteer' | 'hospital' | 'police' | 'admin'
 const ADMIN_EMAIL = 'nitesh933438@gmail.com';
 
 /**
+ * Determines user role based on authentication provider and email.
+ * Admin access is ONLY granted if BOTH:
+ * 1. Email is strictly nitesh933438@gmail.com
+ * 2. Provider is Google ('google.com')
+ */
+export function determineUserRole(
+  user: User, 
+  additionalRole?: UserRole, 
+  existingRole?: UserRole
+): UserRole {
+  if (!user) return 'citizen';
+  const userEmail = (user.email || '').toLowerCase().trim();
+  const isGoogleProvider = user.providerData?.some(p => p.providerId === 'google.com') || false;
+
+  if (userEmail === ADMIN_EMAIL) {
+    if (isGoogleProvider) {
+      return 'admin';
+    } else {
+      // Password or non-Google logins for nitesh933438@gmail.com MUST NOT get admin access
+      return 'citizen';
+    }
+  }
+
+  // For all other users:
+  const desiredRole = additionalRole || existingRole || 'citizen';
+  return desiredRole === 'admin' ? 'citizen' : desiredRole;
+}
+
+/**
  * Syncs or creates the Firestore document in the 'users' collection for the authenticated user.
  */
 export async function syncUserProfileDoc(
@@ -78,7 +107,6 @@ export async function syncUserProfileDoc(
   if (!user || !user.uid) return null;
 
   const userEmail = (user.email || '').toLowerCase().trim();
-  const isAdmin = userEmail === ADMIN_EMAIL;
   const userRef = doc(db, 'users', user.uid);
 
   const fallbackName = additionalData?.name?.trim() || 
@@ -89,15 +117,14 @@ export async function syncUserProfileDoc(
 
   try {
     const snap = await getDoc(userRef).catch(() => null);
-    
+    const existingData = snap && snap.exists() ? snap.data() : null;
+    const computedRole = determineUserRole(user, additionalData?.role, existingData?.role);
+
     if (snap && snap.exists()) {
       // Existing user -> update lastLogin and sync role/phone/photo if provided
-      const existingData = snap.data();
-      const targetRole = additionalData?.role || existingData.role || 'citizen';
-      const updatedRole: UserRole = isAdmin ? 'admin' : (targetRole === 'admin' ? 'citizen' : targetRole);
       const updatePayload: Record<string, any> = {
         lastLogin: serverTimestamp(),
-        role: updatedRole
+        role: computedRole
       };
       if (additionalData?.name) updatePayload.name = additionalData.name;
       if (additionalData?.phone) updatePayload.phone = additionalData.phone;
@@ -108,15 +135,13 @@ export async function syncUserProfileDoc(
       });
     } else {
       // New user document creation
-      const targetRole = additionalData?.role || 'citizen';
-      const assignedRole: UserRole = isAdmin ? 'admin' : (targetRole === 'admin' ? 'citizen' : targetRole);
       const newDoc = {
         uid: user.uid,
         name: fallbackName,
         email: userEmail,
         phone: additionalData?.phone || user.phoneNumber || '',
         photoURL: photoURL,
-        role: assignedRole,
+        role: computedRole,
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp()
       };
