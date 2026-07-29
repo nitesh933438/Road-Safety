@@ -4,7 +4,9 @@
  */
 
 import React from 'react';
-import { LayoutDashboard, PhoneCall, Bot, BookOpen, FileText, User, Settings, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, PhoneCall, Bot, BookOpen, FileText, User, Settings, ShieldAlert, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 interface DashboardSidebarProps {
   activeTab: string;
@@ -12,6 +14,10 @@ interface DashboardSidebarProps {
 }
 
 export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ activeTab, setActiveTab }) => {
+  const { userProfile } = useAuth();
+  const navigate = useNavigate();
+  const isAdmin = userProfile?.role === 'admin';
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'sos', label: 'SOS Emergency', icon: PhoneCall, alert: true },
@@ -21,6 +27,10 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ activeTab, s
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
+
+  if (isAdmin) {
+    menuItems.push({ id: 'admin-panel', label: 'Admin Panel', icon: Shield });
+  }
 
   return (
     <aside className="w-full lg:w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shrink-0">
@@ -46,7 +56,13 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ activeTab, s
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.id === 'admin-panel') {
+                    navigate('/admin');
+                  } else {
+                    setActiveTab(item.id);
+                  }
+                }}
                 className={`flex-shrink-0 lg:w-full flex items-center justify-between px-3.5 py-2.5 lg:py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
                   isActive
                     ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/25'

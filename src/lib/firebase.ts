@@ -70,9 +70,10 @@ const ADMIN_EMAIL = 'nitesh933438@gmail.com';
 
 /**
  * Determines user role based on authentication provider and email.
- * Admin access is ONLY granted if BOTH:
- * 1. Email is strictly nitesh933438@gmail.com
- * 2. Provider is Google ('google.com')
+ * Requirements:
+ * 1. If user.email === "nitesh933438@gmail.com" AND providerId === "google.com" -> role = "admin"
+ * 2. If user.email === "nitesh933438@gmail.com" AND providerId === "password" -> role = "citizen"
+ * 3. For all other users -> keep existing valid Firestore role if present (e.g. volunteer, hospital, police), else "citizen"
  */
 export function determineUserRole(
   user: User, 
@@ -88,34 +89,31 @@ export function determineUserRole(
     provider = localStorage.getItem('gg_auth_provider') || undefined;
   }
 
-  // Fallback to inspecting user.providerData
+  const isGoogleInProviderData = user.providerData?.some(p => p.providerId === 'google.com');
+  const isPasswordInProviderData = user.providerData?.some(p => p.providerId === 'password');
+
   if (!provider) {
-    const isGoogle = user.providerData?.some(p => p.providerId === 'google.com');
-    const isPassword = user.providerData?.some(p => p.providerId === 'password');
-    if (isGoogle && !isPassword) {
+    if (isGoogleInProviderData && !isPasswordInProviderData) {
       provider = 'google.com';
-    } else if (isPassword && !isGoogle) {
+    } else if (isPasswordInProviderData && !isGoogleInProviderData) {
       provider = 'password';
-    } else if (isGoogle) {
+    } else if (isGoogleInProviderData) {
       provider = 'google.com';
     } else {
       provider = 'password';
     }
   }
 
-  // 2. Strict Admin Role Evaluation
+  // 2. Strict Role Evaluation for Admin
   if (userEmail === ADMIN_EMAIL) {
-    if (provider === 'google.com') {
+    if (provider === 'google.com' || (isGoogleInProviderData && provider !== 'password')) {
       return 'admin';
-    } else {
-      // Email/Password login for nitesh933438@gmail.com gets citizen
-      return 'citizen';
     }
+    return 'citizen';
   }
 
   // 3. For all other users:
-  // Keep their existing Firestore role if it exists (e.g. volunteer, hospital, police, citizen);
-  // otherwise default to citizen.
+  // Non-admin existing roles (e.g. volunteer, hospital, police) are retained; otherwise default to citizen.
   if (existingRole && existingRole !== 'admin') {
     return existingRole;
   }
@@ -149,7 +147,8 @@ export async function syncUserProfileDoc(
       // Existing user -> update lastLogin and sync role
       const updatePayload: Record<string, any> = {
         lastLogin: serverTimestamp(),
-        role: computedRole
+        role: computedRole,
+        email: userEmail
       };
       if (additionalData?.name) updatePayload.name = additionalData.name;
       if (additionalData?.phone) updatePayload.phone = additionalData.phone;

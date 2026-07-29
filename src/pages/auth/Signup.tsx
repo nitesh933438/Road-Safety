@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, UserRole } from '../../context/AuthContext';
-import { isGoogleAIStudioPreview } from '../../lib/firebase';
+import { isGoogleAIStudioPreview, determineUserRole } from '../../lib/firebase';
 import { Mail, Lock, User, Phone, UserPlus, Eye, EyeOff, Check, AlertTriangle, ShieldCheck, Shield, Heart, Building2, Radio } from 'lucide-react';
 import { GoogleIcon } from '../../components/common/GoogleIcon';
 import toast from 'react-hot-toast';
@@ -124,8 +124,11 @@ export const SignupPage: React.FC = () => {
       const res = await loginWithGoogle();
 
       if (res.success && res.user) {
+        const computedRole = determineUserRole(res.user, 'google.com');
+        const dest = computedRole === 'admin' ? '/admin' : '/dashboard';
+
         toast.success(`Welcome to GoldenGuard, ${res.user.displayName || 'User'}!`);
-        navigate('/dashboard', { replace: true });
+        navigate(dest, { replace: true });
       } else if (res.isPreview) {
         toast.error(
           'Google Sign-In is available only when running locally (npm run dev) or on a deployed domain due to Firebase OAuth restrictions.',

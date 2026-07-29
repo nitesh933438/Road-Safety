@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   ShieldAlert,
@@ -24,7 +24,8 @@ import {
   Navigation,
   Radio,
   Search,
-  Sparkles
+  Sparkles,
+  ChevronDown
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -44,38 +45,55 @@ export const Navbar: React.FC = () => {
   const { currentUser, userProfile, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  const navLinks = [
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const primaryNavPaths = ['/', '/dashboard', '/sos', '/guardian', '/command-center', '/safe-route', '/map', '/admin'];
+
+  const allNavLinks = [
     { name: 'Home', path: '/', icon: Compass },
     { name: 'Dashboard', path: '/dashboard', icon: Layers },
     { name: 'SOS Emergency', path: '/sos', icon: ShieldAlert },
     { name: 'AI Guardian', path: '/guardian', icon: ShieldAlert },
     { name: 'Command Center', path: '/command-center', icon: Radio },
+    { name: 'AI Safe Route', path: '/safe-route', icon: Navigation },
+    { name: 'Smart Map', path: '/map', icon: Compass },
+    { name: 'Admin Panel', path: '/admin', icon: Shield },
     { name: 'Road Hazards', path: '/hazards', icon: ShieldAlert },
     { name: 'Report Incident', path: '/emergency-report', icon: ShieldAlert },
-    { name: 'AI Safe Route', path: '/safe-route', icon: Navigation },
     { name: 'Smart Risk Layer', path: '/risk-layer', icon: Layers },
     { name: 'AI Prediction', path: '/ai-prediction', icon: Brain },
     { name: 'AI Assistant', path: '/ai-assistant', icon: Bot },
-    { name: 'Smart Map', path: '/map', icon: Compass },
     { name: 'Training Academy', path: '/training', icon: BookOpen },
     { name: 'Good Samaritan', path: '/samaritan', icon: Heart },
     { name: 'Rescue Network', path: '/community', icon: Users },
     { name: 'Pitch Mode', path: '/presentation', icon: Presentation },
-    { name: 'Admin Panel', path: '/admin', icon: Shield },
     { name: 'System Spec', path: '/specs', icon: Layers },
     { name: 'About', path: '/about', icon: Info },
   ];
 
   const userRole = userProfile?.role || 'citizen';
 
-  const visibleNavLinks = navLinks.filter(link => {
+  const visibleNavLinks = allNavLinks.filter(link => {
     if (link.path === '/admin') {
       return userRole === 'admin';
     }
     return true;
   });
+
+  const primaryNavLinks = visibleNavLinks.filter(link => primaryNavPaths.includes(link.path));
+  const secondaryNavLinks = visibleNavLinks.filter(link => !primaryNavPaths.includes(link.path));
 
   const handleLinkClick = () => {
     setMobileMenuOpen(false);
@@ -116,14 +134,14 @@ export const Navbar: React.FC = () => {
               </Link>
 
               {/* Vertical Separator for Breadcrumbs */}
-              <div className="hidden xl:block h-6 w-[1px] bg-slate-200 dark:bg-slate-800 shrink-0" />
+              <div className="hidden 2xl:block h-6 w-[1px] bg-slate-200 dark:bg-slate-800 shrink-0" />
 
               {/* Dynamic Page Title & Breadcrumbs */}
               <Breadcrumbs />
             </div>
 
             {/* CENTER: Global Smart Search Trigger */}
-            <div className="flex-1 max-w-[150px] min-[400px]:max-w-[200px] sm:max-w-xs md:max-w-sm lg:max-w-md mx-1 sm:mx-2 min-w-0">
+            <div className="flex-1 max-w-[140px] min-[400px]:max-w-[180px] sm:max-w-xs md:max-w-sm lg:max-w-md mx-1 sm:mx-2 min-w-0">
               <button
                 type="button"
                 onClick={() => setSearchModalOpen(true)}
@@ -143,15 +161,21 @@ export const Navbar: React.FC = () => {
             </div>
 
             {/* RIGHT SIDE: Widgets, Bell, Theme, Profile */}
-            <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
-              {/* Location Widget */}
-              <LocationWidget />
+            <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
+              {/* Location Widget (Hidden on small screens to prevent header crowding) */}
+              <div className="hidden xl:block">
+                <LocationWidget />
+              </div>
 
               {/* Weather Widget */}
-              <WeatherWidget />
+              <div className="hidden lg:block">
+                <WeatherWidget />
+              </div>
 
               {/* Live Network Status Widget */}
-              <LiveStatusWidget />
+              <div className="hidden md:block">
+                <LiveStatusWidget />
+              </div>
 
               {/* Notification Bell */}
               <NotificationBell />
@@ -193,26 +217,80 @@ export const Navbar: React.FC = () => {
         {/* Sub-Header Horizontal Category / Navigation Links */}
         <div className="hidden md:block border-t border-slate-200/60 dark:border-slate-800/60 bg-white/40 dark:bg-slate-900/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex items-center space-x-1 overflow-x-auto no-scrollbar py-1 text-xs">
-              {visibleNavLinks.map((link) => {
-                const Icon = link.icon;
-                return (
-                  <NavLink
-                    key={link.name}
-                    to={link.path}
-                    className={({ isActive }) =>
-                      `flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap shrink-0 ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
-                      }`
-                    }
+            <nav className="flex items-center justify-between py-1 text-xs">
+              <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar">
+                {primaryNavLinks.map((link) => {
+                  const Icon = link.icon;
+                  return (
+                    <NavLink
+                      key={link.name}
+                      to={link.path}
+                      className={({ isActive }) =>
+                        `flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap shrink-0 ${
+                          isActive
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+                        }`
+                      }
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{link.name}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+
+              {/* More Tools Dropdown */}
+              {secondaryNavLinks.length > 0 && (
+                <div className="relative shrink-0 ml-2" ref={moreMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                    className={`flex items-center space-x-1 px-3 py-1.5 rounded-xl font-bold transition-all text-xs ${
+                      moreMenuOpen
+                        ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+                    }`}
                   >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{link.name}</span>
-                  </NavLink>
-                );
-              })}
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>More Services</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {moreMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-1.5 w-56 rounded-2xl glass border border-slate-200 dark:border-slate-800 shadow-2xl p-2 z-50 grid grid-cols-1 gap-0.5"
+                      >
+                        {secondaryNavLinks.map((link) => {
+                          const Icon = link.icon;
+                          return (
+                            <NavLink
+                              key={link.name}
+                              to={link.path}
+                              onClick={() => setMoreMenuOpen(false)}
+                              className={({ isActive }) =>
+                                `flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                                  isActive
+                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                                }`
+                              }
+                            >
+                              <Icon className="w-4 h-4 text-indigo-500" />
+                              <span>{link.name}</span>
+                            </NavLink>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </nav>
           </div>
         </div>
