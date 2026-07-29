@@ -43,42 +43,30 @@ export const Breadcrumbs: React.FC = () => {
   const currentRoute = ROUTE_MAP[location.pathname] || { title: 'Page', icon: Home };
 
   if (location.pathname === '/') {
-    return (
-      <div className="hidden lg:flex items-center space-x-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-        <span className="flex items-center space-x-1.5 text-indigo-600 dark:text-indigo-400 font-extrabold">
-          <Home className="w-3.5 h-3.5" />
-          <span>Home Overview</span>
-        </span>
-      </div>
-    );
+    return null;
   }
 
   return (
-    <div className="hidden sm:flex flex-col justify-center min-w-0">
-      {/* Page Title */}
-      <h1 className="text-sm sm:text-base font-black text-slate-900 dark:text-white truncate tracking-tight flex items-center space-x-1.5">
-        <span>{currentRoute.title}</span>
-      </h1>
-
+    <div className="hidden xl:flex items-center space-x-2 text-xs font-semibold text-slate-500 dark:text-slate-400 min-w-0">
       {/* Breadcrumb Trail */}
-      <nav aria-label="Breadcrumb" className="flex items-center space-x-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+      <nav aria-label="Breadcrumb" className="flex items-center space-x-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
         <Link 
           to="/" 
           className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center shrink-0"
         >
-          <Home className="w-3 h-3 mr-1 text-slate-400" />
+          <Home className="w-3.5 h-3.5 mr-1 text-slate-400" />
           <span>Home</span>
         </Link>
 
         {currentRoute.category && (
           <>
             <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
-            <span className="text-slate-500 dark:text-slate-400 truncate">{currentRoute.category}</span>
+            <span className="text-slate-500 dark:text-slate-400 truncate max-w-[100px]">{currentRoute.category}</span>
           </>
         )}
 
         <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
-        <span className="text-indigo-600 dark:text-indigo-400 font-bold truncate">
+        <span className="text-indigo-600 dark:text-indigo-400 font-extrabold truncate max-w-[140px]">
           {currentRoute.title}
         </span>
       </nav>

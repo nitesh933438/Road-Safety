@@ -93,49 +93,47 @@ export const Navbar: React.FC = () => {
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
             
-            {/* LEFT SIDE: Brand Logo, Page Title & Breadcrumbs */}
-            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+            {/* LEFT SIDE: Brand Logo & Optional Breadcrumbs */}
+            <div className="flex items-center space-x-2 sm:space-x-3 shrink-0 min-w-0">
               <Link 
                 to="/" 
-                className="flex items-center space-x-2.5 group focus:outline-none shrink-0"
+                className="flex items-center space-x-2 group focus:outline-none shrink-0"
                 aria-label="GoldenGuard Home"
               >
-                <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-md group-hover:scale-105 transition-transform bg-slate-900 flex items-center justify-center border border-amber-500/40 p-0.5">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl overflow-hidden shadow-md group-hover:scale-105 transition-transform bg-slate-900 flex items-center justify-center border border-amber-500/40 p-0.5">
                   <img 
                     src={APP_LOGO_DATA_URI} 
                     alt="GoldenGuard Logo" 
                     className="w-full h-full object-cover rounded-xl" 
                   />
                 </div>
-                <div className="hidden min-[380px]:block">
-                  <span className="font-extrabold text-base sm:text-lg tracking-tight gradient-text block leading-none">
+                <div className="hidden min-[360px]:block">
+                  <span className="font-extrabold text-sm sm:text-base lg:text-lg tracking-tight gradient-text block leading-none">
                     GoldenGuard
-                  </span>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                    ENTERPRISE
                   </span>
                 </div>
               </Link>
 
-              {/* Vertical Separator */}
-              <div className="hidden sm:block h-7 w-[1px] bg-slate-200 dark:bg-slate-800 shrink-0" />
+              {/* Vertical Separator for Breadcrumbs */}
+              <div className="hidden xl:block h-6 w-[1px] bg-slate-200 dark:bg-slate-800 shrink-0" />
 
               {/* Dynamic Page Title & Breadcrumbs */}
               <Breadcrumbs />
             </div>
 
             {/* CENTER: Global Smart Search Trigger */}
-            <div className="flex-1 max-w-xs sm:max-w-md lg:max-w-lg mx-2">
+            <div className="flex-1 max-w-[150px] min-[400px]:max-w-[200px] sm:max-w-xs md:max-w-sm lg:max-w-md mx-1 sm:mx-2 min-w-0">
               <button
                 type="button"
                 onClick={() => setSearchModalOpen(true)}
-                className="w-full flex items-center justify-between px-3.5 py-2 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-500 dark:text-slate-400 text-xs font-semibold transition-all border border-slate-200/60 dark:border-slate-700/60 group focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full flex items-center justify-between px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-500 dark:text-slate-400 text-xs font-semibold transition-all border border-slate-200/60 dark:border-slate-700/60 group focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <div className="flex items-center space-x-2 truncate">
-                  <Search className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:scale-110 transition-transform" />
-                  <span className="truncate">Search hospitals, CPR, SOS, hazards...</span>
+                <div className="flex items-center space-x-1.5 sm:space-x-2 truncate min-w-0">
+                  <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className="truncate hidden sm:inline">Search hospitals, CPR, SOS, hazards...</span>
+                  <span className="truncate sm:hidden">Search...</span>
                 </div>
-                <div className="hidden sm:flex items-center space-x-1 shrink-0 pl-2">
+                <div className="hidden md:flex items-center space-x-1 shrink-0 pl-1.5">
                   <kbd className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs">
                     Ctrl K
                   </kbd>
@@ -143,8 +141,8 @@ export const Navbar: React.FC = () => {
               </button>
             </div>
 
-            {/* RIGHT SIDE: Widgets, Bell, Theme, Language, Profile */}
-            <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+            {/* RIGHT SIDE: Widgets, Bell, Theme, Profile */}
+            <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
               {/* Weather Widget */}
               <WeatherWidget />
 
@@ -158,7 +156,7 @@ export const Navbar: React.FC = () => {
               <button
                 onClick={toggleTheme}
                 aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-                className="p-2 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 transition-colors focus:outline-none"
+                className="p-1.5 sm:p-2 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 transition-colors focus:outline-none"
               >
                 {theme === 'light' ? (
                   <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700 hover:text-indigo-600 transition-colors" />
@@ -178,7 +176,7 @@ export const Navbar: React.FC = () => {
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                   aria-expanded={mobileMenuOpen}
                   aria-label="Toggle navigation menu"
-                  className="p-2 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none transition-colors"
+                  className="p-1.5 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none transition-colors"
                 >
                   {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                 </button>

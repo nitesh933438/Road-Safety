@@ -26,7 +26,7 @@ export const WeatherWidget: React.FC = () => {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="hidden md:flex items-center space-x-2 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200/60 dark:border-slate-800 focus:outline-none"
+        className="hidden lg:flex items-center space-x-2 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200/60 dark:border-slate-800 focus:outline-none"
         aria-label="Live Road Weather Widget"
       >
         <div className="flex items-center space-x-1 text-amber-500">
