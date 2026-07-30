@@ -54,9 +54,18 @@ export const ProfileMenu: React.FC = () => {
         aria-label="User Profile Menu"
         className="flex items-center space-x-2 p-1 rounded-full border-2 border-transparent hover:border-indigo-500 transition-all focus:outline-none"
       >
-        <div className="h-9 w-9 rounded-full bg-indigo-600 text-white font-black uppercase text-sm flex items-center justify-center shadow-md">
-          {userProfile?.name?.charAt(0) || currentUser.email?.charAt(0) || 'U'}
-        </div>
+        {userProfile?.profileImage || userProfile?.photoURL || currentUser?.photoURL ? (
+          <img 
+            src={userProfile?.profileImage || userProfile?.photoURL || currentUser?.photoURL || ''} 
+            alt="Profile Avatar" 
+            className="h-9 w-9 rounded-full object-cover shadow-md"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="h-9 w-9 rounded-full bg-indigo-600 text-white font-black uppercase text-sm flex items-center justify-center shadow-md">
+            {userProfile?.name?.charAt(0) || currentUser.email?.charAt(0) || 'U'}
+          </div>
+        )}
       </button>
 
       <AnimatePresence>

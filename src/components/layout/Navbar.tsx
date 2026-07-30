@@ -309,9 +309,18 @@ export const Navbar: React.FC = () => {
                 <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3 truncate">
-                      <div className="h-9 w-9 rounded-full bg-indigo-600 text-white font-black text-sm flex items-center justify-center shrink-0">
-                        {userProfile?.name?.charAt(0) || currentUser.email?.charAt(0) || 'U'}
-                      </div>
+                      {userProfile?.profileImage || userProfile?.photoURL || currentUser?.photoURL ? (
+                        <img 
+                          src={userProfile?.profileImage || userProfile?.photoURL || currentUser?.photoURL || ''} 
+                          alt="Profile Avatar" 
+                          className="h-9 w-9 rounded-full object-cover shadow-md shrink-0"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="h-9 w-9 rounded-full bg-indigo-600 text-white font-black uppercase text-sm flex items-center justify-center shrink-0">
+                          {userProfile?.name?.charAt(0) || currentUser.email?.charAt(0) || 'U'}
+                        </div>
+                      )}
                       <div className="truncate">
                         <p className="text-xs font-black text-slate-900 dark:text-white truncate">{userProfile?.name || 'User'}</p>
                         <p className="text-[10px] text-slate-500 truncate">{currentUser.email}</p>

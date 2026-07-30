@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { User, Mail, Phone, Droplet, MapPin, Activity, Save, AlertCircle, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -17,7 +17,7 @@ export const ProfilePage: React.FC = () => {
     emergencyContacts: userProfile?.emergencyContacts || '',
     city: userProfile?.city || '',
     state: userProfile?.state || '',
-    profileImage: userProfile?.profileImage || '',
+    profileImage: userProfile?.profileImage || userProfile?.photoURL || currentUser?.photoURL || '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -105,13 +105,25 @@ export const ProfilePage: React.FC = () => {
                 <CloudinaryUploader
                   folder="profile_images"
                   acceptedTypes="image"
-                  maxSizeMB={10}
+                  maxSizeMB={5}
                   value={formData.profileImage}
                   label="Upload Profile Image"
-                  description="Upload JPG, PNG or WEBP avatar picture (max 10MB)"
+                  description="Upload JPG, PNG or WEBP avatar picture (max 5MB)"
                   compact
-                  onUploadSuccess={(res) => {
+                  onUploadSuccess={async (res) => {
                     setFormData(prev => ({ ...prev, profileImage: res.secureUrl }));
+                    if (auth.currentUser) {
+                      try {
+                        const { updateProfile } = await import('firebase/auth');
+                        await updateProfile(auth.currentUser, { photoURL: res.secureUrl });
+                        const userRef = doc(db, 'users', auth.currentUser.uid);
+                        await setDoc(userRef, { profileImage: res.secureUrl, photoURL: res.secureUrl }, { merge: true });
+                        await refreshProfile();
+                        toast.success('Profile photo updated globally');
+                      } catch (err) {
+                        console.error('Error updating profile photo globally', err);
+                      }
+                    }
                   }}
                   onRemove={() => {
                     setFormData(prev => ({ ...prev, profileImage: '' }));

@@ -64,9 +64,18 @@ export const AccessDeniedPage: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-3 pt-1">
-              <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 font-bold flex items-center justify-center uppercase shrink-0">
-                {userProfile?.name?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
-              </div>
+              {userProfile?.profileImage || userProfile?.photoURL || currentUser?.photoURL ? (
+                <img 
+                  src={userProfile?.profileImage || userProfile?.photoURL || currentUser?.photoURL || ''} 
+                  alt="Avatar" 
+                  className="w-10 h-10 rounded-full object-cover shrink-0"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 font-bold flex items-center justify-center uppercase shrink-0">
+                  {userProfile?.name?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
                   {userProfile?.name || 'Logged-in User'}

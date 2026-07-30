@@ -98,9 +98,18 @@ export const AdminDashboardPage: React.FC = () => {
           {/* Admin User Info */}
           <div className="p-4 m-4 rounded-2xl bg-white/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-sm">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-700 dark:text-slate-300">
-                {(userProfile?.name || currentUser?.displayName || 'A').charAt(0)}
-              </div>
+              {userProfile?.profileImage || userProfile?.photoURL || currentUser?.photoURL ? (
+                <img 
+                  src={userProfile?.profileImage || userProfile?.photoURL || currentUser?.photoURL || ''} 
+                  alt="Admin Avatar" 
+                  className="w-10 h-10 rounded-xl object-cover shrink-0"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                  {(userProfile?.name || currentUser?.displayName || 'A').charAt(0)}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{userProfile?.name || currentUser?.displayName || 'Admin User'}</p>
                 <p className="text-[10px] text-slate-500 font-medium truncate">{currentUser?.email || 'admin@system.com'}</p>

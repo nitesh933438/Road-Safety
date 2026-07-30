@@ -19,9 +19,18 @@ export const VolunteerProfile: React.FC = () => {
         <div className="h-32 bg-emerald-600 dark:bg-emerald-800 relative">
           <div className="absolute -bottom-12 left-6">
             <div className="w-24 h-24 bg-white dark:bg-slate-800 rounded-full p-1 shadow-lg">
-              <div className="w-full h-full rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-3xl font-bold text-slate-600 dark:text-slate-300">
-                {userProfile?.name?.charAt(0) || 'U'}
-              </div>
+              {userProfile?.profileImage || userProfile?.photoURL ? (
+                <img 
+                  src={userProfile?.profileImage || userProfile?.photoURL || ''} 
+                  alt="Profile Avatar" 
+                  className="w-full h-full rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-full h-full rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-3xl font-bold text-slate-600 dark:text-slate-300">
+                  {userProfile?.name?.charAt(0) || 'U'}
+                </div>
+              )}
             </div>
           </div>
           <div className="absolute top-4 right-4">
